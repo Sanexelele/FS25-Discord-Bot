@@ -3,7 +3,6 @@ import Configuration from "./Configuration";
 import {XMLParser} from "fast-xml-parser";
 import Logging from "./Logging";
 import IPlayer from "../Interfaces/Feed/IPlayer";
-import IConfiguration from "../Interfaces/Configuration/IConfiguration";
 import IMod from "../Interfaces/Feed/IMod";
 
 export const CONNECTION_REFUSED = 'ECONNREFUSED';
@@ -13,9 +12,6 @@ export default class ServerStatusFeed {
     private _serverStats: ServerStats | null = null;
     private _isOnline: boolean = false;
     private _isFetching: boolean = false;
-
-    constructor() {
-    }
 
     /**
      * Returns the fetching status of the server stats feed

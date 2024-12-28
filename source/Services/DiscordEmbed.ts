@@ -7,7 +7,7 @@ import Logging from "./Logging";
 export default class DiscordEmbed {
     private appLogger: Logger;
     private discordAppClient: Client;
-    private appConfiguration: Configuration;
+    private readonly appConfiguration: Configuration;
     private serverStatsFeed: ServerStatusFeed;
     private firstMessageId: Snowflake | null = null;
 
