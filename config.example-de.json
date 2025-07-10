@@ -1,8 +1,8 @@
 {
   "application": {
     "serverPassword": "TypeMyServerPasswordHere",
-    "serverStatsUrl": "http://1.1.1.1:8080/feed/dedicated-server-stats.xml",
-    "serverMapUrl": "http://1.1.1.1:8080/feed/dedicated-server-stats-map.jpg",
+    "serverStatsUrl": "http://127.0.0.1:8080/feed/dedicated-server-stats.xml",
+    "serverMapUrl": "http://127.0.0.1:8080/feed/dedicated-server-stats-map.jpg",
     "updateIntervalSeconds": 30
   },
   "discord": {
