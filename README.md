@@ -74,7 +74,7 @@ discord.js library to interact with Discord and fetches server stats via the XML
 2. Build and start the container:
 
    ```bash
-   docker-compose up -d --build
+   docker compose up -d --build
    ```
 
 3. The bot should now be running and posting server stats to the specified Discord channel.
