@@ -66,7 +66,7 @@ async function startDiscordService(): Promise<void> {
     }
 }
 
-discordClient.on('ready', () => {
+discordClient.on('clientReady', () => {
     appLogger.info(`Discord client ready. Logged in as ${discordClient.user?.username}!`);
     startDiscordService();
 });
