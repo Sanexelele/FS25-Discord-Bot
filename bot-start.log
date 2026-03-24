@@ -1,0 +1,11 @@
+[Tue 03/24/2026 23:42:15.74] Starting bot... 
+
+> ls25-discord-bot@0.1.8 start
+> npx tsc && node build/Main.js
+
+2026-03-24 23:42:18 [32minfo[39m: Starting | App: ls25-discord-bot | Version: 0.1.8
+2026-03-24 23:42:18 [32minfo[39m: ----------------------------------------------------
+2026-03-24 23:42:18 [32minfo[39m: Discord configuration is valid.
+2026-03-24 23:42:18 [32minfo[39m: Application configuration is valid.
+2026-03-24 23:42:18 [31merror[39m: Translation configuration is not valid. Please check your configuration file.
+2026-03-24 23:42:18 [31merror[39m: Configuration is not valid. Exiting application.
