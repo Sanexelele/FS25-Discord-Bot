@@ -5,7 +5,7 @@ import IApplicationConfiguration from "../Interfaces/Configuration/IApplicationC
  * Set webInterfaceUsername / webInterfacePassword in config when the web UI returns 401.
  */
 export default class WebFeedAuth {
-    public static getBasicAuthHeaders(application: IApplicationConfiguration): HeadersInit | undefined {
+    public static getBasicAuthHeaders(application: IApplicationConfiguration): Record<string, string> | undefined {
         const username = application.webInterfaceUsername;
         if (username === undefined || username === "") {
             return undefined;
