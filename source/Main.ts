@@ -1,62 +1,87 @@
-import {Client, IntentsBitField} from 'discord.js';
+import * as fs from "fs";
+import * as path from "path";
+import {Client, IntentsBitField, SlashCommandBuilder} from "discord.js";
 import Configuration from "./Services/Configuration";
 import Logging from "./Services/Logging";
 import DiscordService from "./Services/DiscordEmbed";
-import VersionChecker from './Services/VersionChecker';
+import VersionChecker from "./Services/VersionChecker";
 
-// Create a new logger instance and configuration instance
 const appLogger = Logging.getLogger();
 const appConfig: Configuration = new Configuration();
 
-// Log the application start and version
-const packageJson = require('../package.json');
-appLogger.info(`Starting | App: ${packageJson.name} | Version: ${packageJson.version}`);
-appLogger.info(`----------------------------------------------------`);
+const crashLogPath = path.join(__dirname, "..", "bot-crash.log");
 
-/**
- * Check if the configuration is valid and exit the application if it is not
- */
-if(!appConfig.isConfigurationValid()) {
+function appendCrashLog(kind: string, detail: unknown): void {
+    const text =
+        detail instanceof Error
+            ? `${detail.stack || detail.message}`
+            : typeof detail === "object"
+              ? JSON.stringify(detail)
+              : String(detail);
+    const line = `\n${new Date().toISOString()} [${kind}]\n${text}\n`;
+    try {
+        fs.appendFileSync(crashLogPath, line, "utf8");
+    } catch {
+        /* disk full / permissions */
+    }
+}
+
+process.on("uncaughtException", (err: Error) => {
+    appendCrashLog("uncaughtException", err);
+    appLogger.error(`Uncaught exception: ${err?.message ?? err}`, err);
+    process.exit(1);
+});
+
+process.on("unhandledRejection", (reason: unknown) => {
+    appendCrashLog("unhandledRejection", reason);
+    appLogger.error(`Unhandled rejection: ${reason}`);
+});
+
+if (!appConfig.isConfigurationValid()) {
     appLogger.error("Configuration is not valid. Exiting application.");
     process.exit(1);
 }
 
-/**
- * Check the version of the bot and log if it is up to date
- */
 const versionChecker = new VersionChecker();
 versionChecker.checkVersionIsUpdated().then((isUpToDate: boolean): void => {
     if (!isUpToDate) {
-        appLogger.warn(`====================================================`);
-        appLogger.warn(`====================================================`);
         appLogger.warn(`The bot is not up to date. Please update it soon.`);
-        appLogger.warn(`Use the command 'git pull && docker compose up -d --build' to update the bot.`);
-        appLogger.warn(`====================================================`);
-        appLogger.warn(`====================================================`);
-
-    } else {
-        appLogger.info(`The bot is up to date. No update needed.`);
+        appLogger.warn(`Use: git pull && docker compose up -d --build`);
     }
 });
 
-/**
- * Create a new discord client instance
- */
 const discordClient = new Client({
-    intents: [IntentsBitField.Flags.Guilds, IntentsBitField.Flags.GuildMessages]
+    intents: [IntentsBitField.Flags.Guilds, IntentsBitField.Flags.GuildMessages],
 });
 
-/**
- * Start the discord client and log in
- * After that create a new DiscordService instance to start the server stats feed
- */
-discordClient.login(appConfig.discord.botToken).then(() => {
-    appLogger.info(`Login successful to discord with token`);
+discordClient.on("interactionCreate", async (interaction) => {
+    if (!interaction.isChatInputCommand()) {
+        return;
+    }
+    if (interaction.commandName !== "status") {
+        return;
+    }
+    const svc = DiscordService.getInstance();
+    if (!svc) {
+        await interaction.reply({content: "Bot is still starting.", ephemeral: true});
+        return;
+    }
+    if (!interaction.channel?.isTextBased()) {
+        await interaction.reply({content: "Use this command in a text channel.", ephemeral: true});
+        return;
+    }
+    await interaction.deferReply();
+    try {
+        const embed = await svc.buildStatusEmbed();
+        await interaction.editReply({embeds: [embed]});
+    } catch (err: unknown) {
+        appLogger.error(err);
+        await interaction.editReply({content: "Could not fetch server status."}).catch(() => {});
+    }
 });
 
-/**
- * Start the DiscordService and restart it if an error occurred
- */
+discordClient.login(appConfig.discord.botToken);
+
 async function startDiscordService(): Promise<void> {
     try {
         new DiscordService(discordClient);
@@ -66,7 +91,20 @@ async function startDiscordService(): Promise<void> {
     }
 }
 
-discordClient.on('clientReady', () => {
-    appLogger.info(`Discord client ready. Logged in as ${discordClient.user?.username}!`);
+discordClient.once("clientReady", async () => {
     startDiscordService();
+    try {
+        const commands = [
+            new SlashCommandBuilder()
+                .setName("status")
+                .setDescription("Post Farming Simulator server status (refreshes the feed now)")
+                .toJSON(),
+        ];
+        const application = discordClient.application;
+        if (application) {
+            await application.commands.set(commands);
+        }
+    } catch (err: unknown) {
+        appLogger.error("Failed to register slash commands. Re-invite the bot with the applications.commands scope.", err);
+    }
 });

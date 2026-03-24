@@ -44,7 +44,6 @@ export default class ServerStatusFeed {
     public async updateServerFeed(): Promise<ServerStats|null> {
         this._isFetching = true;
         try {
-            Logging.getLogger().info(`Fetching server status from feed url`);
             const application = Configuration.getConfiguration().application;
             const headers = WebFeedAuth.getBasicAuthHeaders(application);
             const init: RequestInit = headers ? { headers } : {};
@@ -52,31 +51,30 @@ export default class ServerStatusFeed {
             if (!response.ok) {
                 this._isOnline = false;
                 if (response.status === 401) {
-                    Logging.getLogger().error(
+                    Logging.getLogger().warn(
                         `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`
                     );
                 } else {
-                    Logging.getLogger().error(`Server status feed returned HTTP ${response.status}`);
+                    Logging.getLogger().warn(`Server status feed returned HTTP ${response.status}`);
                 }
                 return null;
             }
             const text = await response.text();
             this._isOnline = true;
             const parsedFeed = new XMLParser({ignoreAttributes: false, attributeNamePrefix: ''}).parse(text) as ServerStats;
-            Logging.getLogger().info(`Server status feed successful received`);
             this._serverStats = parsedFeed;
         } catch (reason: any) {
             this._isOnline = false;
             const code = reason?.cause?.code ?? reason?.code;
             switch (code) {
                 case CONNECTION_REFUSED:
-                    Logging.getLogger().error(`Connection refused to server status feed`);
+                    Logging.getLogger().warn(`Connection refused to server status feed`);
                     break;
                 case NOT_FOUND:
-                    Logging.getLogger().error(`Server status feed not found`);
+                    Logging.getLogger().warn(`Server status feed not found`);
                     break;
                 default:
-                    Logging.getLogger().error(`Error fetching server status feed`);
+                    Logging.getLogger().warn(`Error fetching server status feed`);
                     break;
             }
             return null;

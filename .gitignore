@@ -7,3 +7,5 @@ config.prod.json
 config.test.json
 config.dev.json
 config.example-en.json
+bot-crash.log
+bot-start.log

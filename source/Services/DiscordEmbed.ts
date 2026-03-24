@@ -5,14 +5,31 @@ import WebFeedAuth from "./WebFeedAuth";
 import {Logger} from "winston";
 import Logging from "./Logging";
 
+function isDiscordChannelAccessError(e: unknown): boolean {
+    if (typeof e !== "object" || e === null) {
+        return false;
+    }
+    const err = e as { code?: number; message?: string };
+    return err.code === 50001 || err.code === 50013;
+}
+
 export default class DiscordEmbed {
+    private static instance: DiscordEmbed | null = null;
+
+    public static getInstance(): DiscordEmbed | null {
+        return DiscordEmbed.instance;
+    }
+
     private appLogger: Logger;
     private discordAppClient: Client;
     private appConfiguration: Configuration;
     private serverStatsFeed: ServerStatusFeed;
     private firstMessageId: Snowflake | null = null;
+    /** Log Missing Access / Missing Permissions only once (same tick would spam every update). */
+    private channelAccessErrorLogged = false;
 
     public constructor(discordAppClient: Client) {
+        DiscordEmbed.instance = this;
         this.appLogger = Logging.getLogger();
         this.discordAppClient = discordAppClient;
         this.appConfiguration = new Configuration();
@@ -27,6 +44,14 @@ export default class DiscordEmbed {
     }
 
     /**
+     * Refresh the XML feed and build the same embed used for the live status message (for /status).
+     */
+    public async buildStatusEmbed(): Promise<EmbedBuilder> {
+        await this.serverStatsFeed.updateServerFeed();
+        return this.generateEmbedFromStatusFeed(this.serverStatsFeed);
+    }
+
+    /**
      * Update the discord embed with the server status, player list and server time
      * This method is called every x seconds to update the discord embed.
      * @private
@@ -35,42 +60,50 @@ export default class DiscordEmbed {
         try {
             await this.serverStatsFeed.updateServerFeed();
             if(this.serverStatsFeed.isFetching()) {
-                this.appLogger.info('Server status feed is still fetching, try again...');
                 setTimeout(() => {
                     this.updateDiscordEmbed();
                 }, 1000);
                 return;
             }
-            this.discordAppClient.channels.fetch(this.appConfiguration.discord.channelId as Snowflake).then(async channel => {
-                /**
-                 * Send the initial message to the channel (if the first message id is not set) or
-                 * the message is meanwhile deleted
-                 * @param embedMessage
-                 */
-                let sendInitialMessage = (embedMessage: EmbedBuilder) => {
-                    // noinspection JSAnnotator
-                    (channel as TextChannel).send({embeds: [embedMessage]}).then(message => {
-                        this.firstMessageId = message.id;
-                    });
-                };
+            const channel = await this.discordAppClient.channels.fetch(
+                this.appConfiguration.discord.channelId as Snowflake
+            );
+            if (!channel?.isTextBased()) {
+                return;
+            }
+            const textChannel = channel as TextChannel;
 
-                this.generateEmbedFromStatusFeed(this.serverStatsFeed).then(embedMessage => {
-                    if (this.firstMessageId !== null) {
-                        (channel as TextChannel).messages.fetch(this.firstMessageId).then(message => {
-                            this.appLogger.info(`Message found, editing message with new embed`);
-                            message.edit({embeds: [embedMessage]});
-                        }).catch(() => {
-                            this.appLogger.warn('Message not found, sending new message');
-                            sendInitialMessage(embedMessage);
-                        });
-                    } else {
-                        this.appLogger.info(`No message found, sending new message`);
-                        sendInitialMessage(embedMessage);
-                    }
-                });
-            });
-        } catch (exception) {
-            this.appLogger.error(exception);
+            const embedMessage = await this.generateEmbedFromStatusFeed(this.serverStatsFeed);
+
+            const sendInitialMessage = async (embed: EmbedBuilder) => {
+                const message = await textChannel.send({embeds: [embed]});
+                this.firstMessageId = message.id;
+            };
+
+            if (this.firstMessageId !== null) {
+                try {
+                    const message = await textChannel.messages.fetch(this.firstMessageId);
+                    await message.edit({embeds: [embedMessage]});
+                } catch {
+                    await sendInitialMessage(embedMessage);
+                }
+            } else {
+                await sendInitialMessage(embedMessage);
+            }
+        } catch (exception: unknown) {
+            if (isDiscordChannelAccessError(exception)) {
+                if (!this.channelAccessErrorLogged) {
+                    this.channelAccessErrorLogged = true;
+                    this.appLogger.error(
+                        "Discord: Missing Access to the configured channel. Fix: correct channelId in config.json; " +
+                            "invite the bot to the server; channel role overrides must allow View Channel, Send Messages, " +
+                            "Embed Links, and Manage Messages (for clearing the channel on startup). " +
+                            "Put the bot's role above channel restrictions if you use private categories."
+                    );
+                }
+            } else {
+                this.appLogger.error(exception);
+            }
         }
 
         setTimeout(() => {
@@ -83,13 +116,21 @@ export default class DiscordEmbed {
      * @private
      */
     private async deleteAllMessages(): Promise<boolean> {
-        let textChannel = this.discordAppClient.channels.cache.get(this.appConfiguration.discord.channelId as Snowflake) as TextChannel;
-        this.appLogger.info(`Deleting all messages in discord text channel ${textChannel.id}`);
-        textChannel.messages.fetch().then(messages => {
-            messages.forEach(message => {
-                message.delete();
+        try {
+            const channel = await this.discordAppClient.channels.fetch(
+                this.appConfiguration.discord.channelId as Snowflake
+            );
+            if (!channel?.isTextBased()) {
+                return false;
+            }
+            const textChannel = channel as TextChannel;
+            const messages = await textChannel.messages.fetch();
+            messages.forEach((message) => {
+                message.delete().catch(() => {});
             });
-        });
+        } catch {
+            /* channel missing, no access, or API error */
+        }
         return true;
     }
 

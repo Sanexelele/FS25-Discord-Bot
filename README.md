@@ -45,10 +45,12 @@ discord.js library to interact with Discord and fetches server stats via the XML
 3. Navigate to the `Bot` section in the left menu and click on `Add Bot`.
 4. Copy the bot token by clicking `Copy` (you'll need this later).
 5. Go to the `OAuth2` > `URL Generator` section in the left menu.
-6. Under "Scopes," select `bot`, and under "Bot Permissions," select `Administrator`.
+6. Under "Scopes," select `bot` **and** `applications.commands` (required for `/status` and other slash commands). Under "Bot Permissions," select `Administrator` (or the permissions you need).
 7. Copy the generated URL to invite the bot to your Discord server.
-   - The URL should look like this:
-     `https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot&permissions=8`
+   - Example:
+     `https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=8`
+
+After the bot is running, type `/status` in a text channel to post a fresh copy of the server status embed in that channel (the configured channel still updates on its own timer).
 
 ---
 

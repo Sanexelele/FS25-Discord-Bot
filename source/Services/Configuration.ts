@@ -103,22 +103,16 @@ export default class Configuration implements IConfiguration{
         if(!this.validateDiscordConfiguration()) {
             this.logger.error("Discord configuration is not valid. Please check your configuration file.");
             return false;
-        } else {
-            this.logger.info("Discord configuration is valid.");
         }
 
         if(!this.validateApplicationConfiguration()) {
             this.logger.error("Application configuration is not valid. Please check your configuration file.");
             return false;
-        } else {
-            this.logger.info("Application configuration is valid.");
         }
 
         if(!this.validateTranslationConfiguration()) {
             this.logger.error("Translation configuration is not valid. Please check your configuration file.");
             return false;
-        } else {
-            this.logger.info("Translation configuration is valid.");
         }
         return true;
     }
