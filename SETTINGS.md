@@ -8,6 +8,8 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | (*) application.serverPassword               | The password to join the server (or leave empty)                          |
 | (*) application.serverStatsUrl               | The feed URL to the server stats (from the web interface from the server) |
 | (*) application.serverMapUrl                 | The feed URL to the server map (from the web interface from the server)   |
+| application.webInterfaceUsername             | Web interface login (HTTP Basic); required if the feed returns 401        |
+| application.webInterfacePassword             | Web interface password; use with webInterfaceUsername                     |
 | (*) application.updateIntervalSeconds        | The interval in seconds to update the server stats                        |
 | (*) discord.channelId                        | The channel id where the bot should post the server stats                 |
 | (*) discord.botToken                         | The bot token from the Discord Developer Portal                           |

@@ -1,6 +1,7 @@
 import {Client, EmbedBuilder, Snowflake, TextChannel} from "discord.js";
 import Configuration from "./Configuration";
 import ServerStatusFeed from "./ServerStatusFeed";
+import WebFeedAuth from "./WebFeedAuth";
 import {Logger} from "winston";
 import Logging from "./Logging";
 
@@ -120,7 +121,7 @@ export default class DiscordEmbed {
             embed.setColor(0x00CA00);
             embed.setDescription(config.translation.discordEmbed.descriptionOnline);
             embed.setTimestamp(new Date());
-            embed.setThumbnail(config.application.serverMapUrl);
+            embed.setThumbnail(WebFeedAuth.getMapUrlWithAuth(config.application));
 
             let playerListString: string;
             let playerListTitleString = `${config.translation.discordEmbed.titlePlayerCount} (${serverStats.getPlayerCount()??0}/${serverStats.getMaxPlayerCount()??0}):`;

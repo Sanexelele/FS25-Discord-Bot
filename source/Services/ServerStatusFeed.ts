@@ -3,8 +3,8 @@ import Configuration from "./Configuration";
 import {XMLParser} from "fast-xml-parser";
 import Logging from "./Logging";
 import IPlayer from "../Interfaces/Feed/IPlayer";
-import IConfiguration from "../Interfaces/Configuration/IConfiguration";
 import IMod from "../Interfaces/Feed/IMod";
+import WebFeedAuth from "./WebFeedAuth";
 
 export const CONNECTION_REFUSED = 'ECONNREFUSED';
 export const NOT_FOUND = 'ENOTFOUND';
@@ -43,43 +43,46 @@ export default class ServerStatusFeed {
      */
     public async updateServerFeed(): Promise<ServerStats|null> {
         this._isFetching = true;
-        Logging.getLogger().info(`Fetching server status from feed url`);
-        await fetch(Configuration.getConfiguration().application.serverStatsUrl)
-            .then(
-                r => r.text()
-            ).then(
-                (response) => {
-                    // Set online status to true
-                    this._isOnline = true;
-
-                    // Parse the XML response
-                    const parsedFeed = new XMLParser({ignoreAttributes: false, attributeNamePrefix: ''}).parse(response) as ServerStats;
-                    Logging.getLogger().info(`Server status feed successful received`);
-                    this._serverStats = parsedFeed;
+        try {
+            Logging.getLogger().info(`Fetching server status from feed url`);
+            const application = Configuration.getConfiguration().application;
+            const headers = WebFeedAuth.getBasicAuthHeaders(application);
+            const init: RequestInit = headers ? { headers } : {};
+            const response = await fetch(application.serverStatsUrl, init);
+            if (!response.ok) {
+                this._isOnline = false;
+                if (response.status === 401) {
+                    Logging.getLogger().error(
+                        `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`
+                    );
+                } else {
+                    Logging.getLogger().error(`Server status feed returned HTTP ${response.status}`);
                 }
-            ).catch(
-                (reason) => {
-                    // Set online status to false
-                    this._isOnline = false;
-
-                    // Handle different error codes
-                    switch (reason.cause.code) {
-                        case CONNECTION_REFUSED:
-                            Logging.getLogger().error(`Connection refused to server status feed`);
-                            break;
-                        case NOT_FOUND:
-                            Logging.getLogger().error(`Server status feed not found`);
-                            break;
-                        default:
-                            Logging.getLogger().error(`Error fetching server status feed`);
-                            break;
-                    }
-                    return null;
-                })
-            .finally(() => {
-                // Set fetching status to false after fetching is done or failed
-                this._isFetching = false;
-            });
+                return null;
+            }
+            const text = await response.text();
+            this._isOnline = true;
+            const parsedFeed = new XMLParser({ignoreAttributes: false, attributeNamePrefix: ''}).parse(text) as ServerStats;
+            Logging.getLogger().info(`Server status feed successful received`);
+            this._serverStats = parsedFeed;
+        } catch (reason: any) {
+            this._isOnline = false;
+            const code = reason?.cause?.code ?? reason?.code;
+            switch (code) {
+                case CONNECTION_REFUSED:
+                    Logging.getLogger().error(`Connection refused to server status feed`);
+                    break;
+                case NOT_FOUND:
+                    Logging.getLogger().error(`Server status feed not found`);
+                    break;
+                default:
+                    Logging.getLogger().error(`Error fetching server status feed`);
+                    break;
+            }
+            return null;
+        } finally {
+            this._isFetching = false;
+        }
         return this._serverStats;
     }
 

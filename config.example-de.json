@@ -3,6 +3,8 @@
     "serverPassword": "TypeMyServerPasswordHere",
     "serverStatsUrl": "http://127.0.0.1:8080/feed/dedicated-server-stats.xml",
     "serverMapUrl": "http://127.0.0.1:8080/feed/dedicated-server-stats-map.jpg",
+    "webInterfaceUsername": "",
+    "webInterfacePassword": "",
     "updateIntervalSeconds": 30
   },
   "discord": {
