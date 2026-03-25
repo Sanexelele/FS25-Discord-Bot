@@ -10,7 +10,7 @@ RUN pnpm install
 RUN pnpm run build
 
 ## Simplyfy the rm commands
-RUN rm -rf .ddev/ source/ misc/ .git .gitignore config.example-en.json Dockerfile docker-compose.yml README.md
+RUN rm -rf .ddev/ source/ misc/ .git .gitignore config.example-de.json config.example-en.json Dockerfile docker-compose.yml README.md
 
 CMD ["npm", "run", "start-only"]
 ENTRYPOINT ["npm", "run", "start-only"]

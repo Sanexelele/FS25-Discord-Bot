@@ -56,15 +56,9 @@ After the bot is running, type `/status` in a text channel to post a fresh copy 
 
 ### Step 2: Configure the Bot
 
-1. Clone the repository to your server
-2. Locate the configuration files:
-   - Use either
-     - `config.example-de.json` (for German)
-     - `config.example-en.json` (for English)
-   - Rename the chosen file to `config.json`.
-3. Open `config.json` and fill in the required fields:
-   - Refer to `SETTINGS.md` for detailed descriptions of each field.
-   - Fields marked with `(*)` are important to check; other fields can be left empty for default values.
+1. Clone the repository to your server.
+2. Create **`config.json`** in the project root (same folder as `package.json`). The bot only reads **`config.json`**.
+3. Fill in the required fields using **`SETTINGS.md`** as the reference for each key. Fields marked with `(*)` there are required unless noted otherwise.
 
 ---
 

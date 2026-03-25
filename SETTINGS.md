@@ -11,8 +11,9 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | application.webInterfaceUsername             | Web interface login (HTTP Basic); required if the feed returns 401        |
 | application.webInterfacePassword             | Web interface password; use with webInterfaceUsername                     |
 | (*) application.updateIntervalSeconds        | The interval in seconds to update the server stats                        |
-| (*) discord.channelId                        | The channel id where the bot should post the server stats                 |
 | (*) discord.botToken                         | The bot token from the Discord Developer Portal                           |
+| (*) discord.channelId                        | Single server: text channel id for the live status (ignored if `servers` is set) |
+| discord.servers                              | Multiple servers: array of `{ "guildId", "channelId", "label"? }`. Optional `label` is only for your notes (not sent to Discord). |
 | translation.discordEmbed.title               | The title of the Discord embed                                            |
 | translation.discordEmbed.descriptionOnline   | The description when the server is online                                 |
 | translation.discordEmbed.descriptionOffline  | The description when the server is offline                                |

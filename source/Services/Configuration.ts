@@ -1,4 +1,4 @@
-import IDiscordConfiguration from "../Interfaces/Configuration/IDiscordConfiguration";
+import IDiscordConfiguration, {IDiscordServerChannel} from "../Interfaces/Configuration/IDiscordConfiguration";
 import IApplicationConfiguration from "../Interfaces/Configuration/IApplicationConfiguration";
 import IConfiguration from "../Interfaces/Configuration/IConfiguration";
 import ITranslation from "../Interfaces/Configuration/ITranslation";
@@ -43,11 +43,30 @@ export default class Configuration implements IConfiguration{
     }
 
     /**
+     * Resolved targets for the live status embed (legacy `channelId` or `servers` list).
+     */
+    public getDiscordStatusTargets(): IDiscordServerChannel[] {
+        const d = this.discord;
+        if (Array.isArray(d.servers) && d.servers.length > 0) {
+            return d.servers.filter(
+                (s) => !this.isValueEmptyOrUndefined(s?.guildId) && !this.isValueEmptyOrUndefined(s?.channelId)
+            );
+        }
+        if (!this.isValueEmptyOrUndefined(d.channelId)) {
+            return [{guildId: "", channelId: d.channelId as string}];
+        }
+        return [];
+    }
+
+    /**
      * Validates the discord configuration and returns true if the configuration is valid
      * @private
      */
     private validateDiscordConfiguration(): boolean {
-        return !(this.isValueEmptyOrUndefined(this.discord?.botToken) || this.isValueEmptyOrUndefined(this.discord?.channelId));
+        if (this.isValueEmptyOrUndefined(this.discord?.botToken)) {
+            return false;
+        }
+        return this.getDiscordStatusTargets().length > 0;
     }
 
     /**

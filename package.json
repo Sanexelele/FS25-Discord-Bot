@@ -4,9 +4,9 @@
   "description": "A simple discord bot for farming simulator 25",
   "main": "source/Main.ts",
   "scripts": {
-    "start": "npx tsc && node build/Main.js",
+    "start": "node node_modules/typescript/bin/tsc && node build/Main.js",
     "start-only": "node build/Main.js",
-    "build": "npx tsc",
+    "build": "node node_modules/typescript/bin/tsc",
     "schema": "npx json2ts -i source/Schema/ServerStats.json -o ./source/Schema/ServerStats.d.ts --unreachableDefinitions",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

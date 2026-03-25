@@ -38,7 +38,10 @@ process.on("unhandledRejection", (reason: unknown) => {
 });
 
 if (!appConfig.isConfigurationValid()) {
-    appLogger.error("Configuration is not valid. Exiting application.");
+    const msg = "Configuration is not valid. Exiting application.";
+    appendCrashLog("startup", new Error(msg));
+    appLogger.error(msg);
+    console.error(msg);
     process.exit(1);
 }
 
@@ -107,4 +110,8 @@ discordClient.once("clientReady", async () => {
     } catch (err: unknown) {
         appLogger.error("Failed to register slash commands. Re-invite the bot with the applications.commands scope.", err);
     }
+    console.log(
+        `Bot online as ${discordClient.user?.tag ?? "?"}. ` +
+            `Running quietly (only errors). For detailed logs, set LOG_LEVEL=info before starting.`
+    );
 });
