@@ -18,7 +18,7 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | translation.discordEmbed.title               | The title of the Discord embed                                            |
 | translation.discordEmbed.titleStatus         | Word shown in the STATUS line (e.g. STATUS)                               |
 | translation.discordEmbed.titleBotUptime      | Label for bot process uptime                                              |
-| translation.discordEmbed.titleDiscordPing    | Label for Discord gateway ping (ms)                                       |
+| translation.discordEmbed.titleServerLatency  | Label for HTTP round-trip to `serverStatsUrl` (ms + host), not Discord ping |
 | translation.discordEmbed.descriptionOnline   | The description when the server is online                                 |
 | translation.discordEmbed.descriptionOffline  | The description when the server is offline                                |
 | translation.discordEmbed.descriptionUnknown  | The description when the server status is unknown                         |

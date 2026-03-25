@@ -13,8 +13,17 @@ export default class ServerStatusFeed {
     private _serverStats: ServerStats | null = null;
     private _isOnline: boolean = false;
     private _isFetching: boolean = false;
+    /** Milliseconds for last successful HTTP round-trip to serverStatsUrl (feed XML). */
+    private _lastFeedLatencyMs: number | null = null;
 
     constructor() {
+    }
+
+    /**
+     * Last measured HTTP latency to the dedicated server feed (ms), or null if last request failed.
+     */
+    public getLastFeedLatencyMs(): number | null {
+        return this._lastFeedLatencyMs;
     }
 
     /**
@@ -47,8 +56,10 @@ export default class ServerStatusFeed {
             const application = Configuration.getConfiguration().application;
             const headers = WebFeedAuth.getBasicAuthHeaders(application);
             const init: RequestInit = headers ? { headers } : {};
+            const t0 = Date.now();
             const response = await fetch(application.serverStatsUrl, init);
             if (!response.ok) {
+                this._lastFeedLatencyMs = Date.now() - t0;
                 this._isOnline = false;
                 if (response.status === 401) {
                     Logging.getLogger().warn(
@@ -60,10 +71,12 @@ export default class ServerStatusFeed {
                 return null;
             }
             const text = await response.text();
+            this._lastFeedLatencyMs = Date.now() - t0;
             this._isOnline = true;
             const parsedFeed = new XMLParser({ignoreAttributes: false, attributeNamePrefix: ''}).parse(text) as ServerStats;
             this._serverStats = parsedFeed;
         } catch (reason: any) {
+            this._lastFeedLatencyMs = null;
             this._isOnline = false;
             const code = reason?.cause?.code ?? reason?.code;
             switch (code) {

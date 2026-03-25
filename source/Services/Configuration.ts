@@ -94,7 +94,7 @@ export default class Configuration implements IConfiguration{
             || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.descriptionUnknown)
             || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.titleStatus)
             || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.titleBotUptime)
-            || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.titleDiscordPing)
+            || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.titleServerLatency)
             || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.titleServerName)
             || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.titleServerPassword)
             || this.isValueEmptyOrUndefined(this?.translation?.discordEmbed?.titleServerTime)

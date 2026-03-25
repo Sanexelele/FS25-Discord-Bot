@@ -3,6 +3,7 @@ import Configuration from "./Configuration";
 import type {IDiscordServerChannel} from "../Interfaces/Configuration/IDiscordConfiguration";
 import type ITranslationDiscordEmbed from "../Interfaces/Configuration/ITranslationDiscordEmbed";
 import ServerStatusFeed from "./ServerStatusFeed";
+import {icmpPingHost} from "./IcmpPing";
 import WebFeedAuth from "./WebFeedAuth";
 import {Logger} from "winston";
 import Logging from "./Logging";
@@ -60,6 +61,14 @@ function fieldName(emoji: string, label: string): string {
     return `${emoji} ${label}`;
 }
 
+function hostFromStatsUrl(url: string): string {
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return "?";
+    }
+}
+
 export default class DiscordEmbed {
     private static instance: DiscordEmbed | null = null;
 
@@ -93,9 +102,18 @@ export default class DiscordEmbed {
         return this.generateEmbedFromStatusFeed(this.serverStatsFeed);
     }
 
-    private formatDiscordPing(): string {
-        const p = this.discordAppClient.ws.ping;
-        return typeof p === "number" && p >= 0 ? `${p} ms` : "—";
+    /** ICMP when possible, else HTTP feed latency; value is ms only (no host / protocol labels). */
+    private async formatServerLatency(serverStats: ServerStatusFeed): Promise<string> {
+        const host = hostFromStatsUrl(this.appConfiguration.application.serverStatsUrl);
+        const icmpMs = await icmpPingHost(host);
+        if (icmpMs !== null) {
+            return `${icmpMs} ms`;
+        }
+        const httpMs = serverStats.getLastFeedLatencyMs();
+        if (httpMs !== null) {
+            return `${httpMs} ms`;
+        }
+        return "—";
     }
 
     private async updateDiscordEmbed(): Promise<void> {
@@ -198,6 +216,7 @@ export default class DiscordEmbed {
 
         embed.setTitle(`🚜 ${t.title}`);
 
+        const latencyValue = await this.formatServerLatency(serverStats);
         const metaFields = [
             {
                 name: fieldName("⏱️", t.titleBotUptime),
@@ -205,8 +224,8 @@ export default class DiscordEmbed {
                 inline: true,
             },
             {
-                name: fieldName("📶", t.titleDiscordPing),
-                value: this.formatDiscordPing(),
+                name: fieldName("🌐", t.titleServerLatency),
+                value: latencyValue,
                 inline: true,
             },
         ];

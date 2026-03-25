@@ -6,7 +6,8 @@ export default interface ITranslationDiscordEmbed {
     descriptionOffline: string;
     descriptionUnknown: string;
     titleBotUptime: string;
-    titleDiscordPing: string;
+    /** Dedicated server responsiveness (ms); label in translation */
+    titleServerLatency: string;
     titleServerName: string;
     titleServerMap: string;
     titleServerMods: string;
