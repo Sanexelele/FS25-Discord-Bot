@@ -1,0 +1,124 @@
+================================================================================
+  MANUS FOR AI – Automatisk oppsett av FS25 Discord Bot
+================================================================================
+
+INSTRUKSJON TIL DEN SOM LIMER INN DETTE:
+  Send hele denne filen (eller referer til den) til en AI-assistent sammen med
+  en kort beskjed, for eksempel:
+  «Følg dokumentet nøyaktig og utfør oppsettet på denne maskinen / i denne
+  mappen. Spør meg om verdier jeg må oppgi manuelt (Discord-token, URL-er,
+  passord).»
+
+INSTRUKSJON TIL AI-ASSISTENTEN (LES OG FØLG):
+  Du skal hjelpe med å sette opp «FS25 Discord Bot» (Node.js + TypeScript).
+  Prosjektet har package.json, config.json, source/, FARMINGBOT.bat, Dockerfile.
+  Målet er en fungerende bot som viser Farming Simulator dedikert server-status
+  i Discord med embed, og slash-kommando /status.
+
+  ──────────────────────────────────────────────────────────────────────────
+  0. FORUTSETNINGER (VERIFISER)
+  ──────────────────────────────────────────────────────────────────────────
+  • Node.js LTS installert (node -v, npm -v skal fungere).
+  • Brukeren har prosjektmappen tilgjengelig (klonet eller kopiert).
+  • Brukeren har eller skal opprette en Discord Application med Bot-token.
+  • Brukeren har tilgang til dedikert serverens web-feed (URL-er til XML og
+    kart) og eventuelt HTTP Basic for /feed/ hvis 401.
+
+  ──────────────────────────────────────────────────────────────────────────
+  1. AVHENGIGHETER
+  ──────────────────────────────────────────────────────────────────────────
+  I prosjektrot (der package.json ligger), kjør:
+      npm install
+  Verifiser at node_modules opprettes uten kritiske feil.
+
+  ──────────────────────────────────────────────────────────────────────────
+  2. BYGG (VALIDERING)
+  ──────────────────────────────────────────────────────────────────────────
+  Kjør:
+      npm run build
+  TypeScript skal kompilere til `build/`. Ved feil: fiks feil eller rapporter
+  konkret kompilatormelding til brukeren.
+
+  ──────────────────────────────────────────────────────────────────────────
+  3. CONFIG.JSON – STRUKTUR OG PÅKREVEDE FELTER
+  ──────────────────────────────────────────────────────────────────────────
+  Opprett eller rediger `config.json` i rotmappen. Valid JSON.
+
+  application (påkrevde der det står *):
+    • serverPassword* (string, kan være tom streng "")
+    • serverStatsUrl* (string, HTTP(S) til dedicated-server-stats.xml)
+    • serverMapUrl* (string, HTTP(S) til kart-JPEG)
+    • updateIntervalSeconds* (number, f.eks. 30)
+    • webInterfaceUsername, webInterfacePassword (string, tom hvis ikke 401)
+    • embedImageUrl (string, valgfritt HTTPS bilde under embed)
+
+  discord:
+    • botToken* (string – ALDRI logg eller committ denne til offentlig repo)
+    • Enten channelId (én kanal) ELLER servers[] (flere):
+      servers[]: liste av { "guildId": "...", "channelId": "...", "label": "..." }
+      label er valgfritt og kun for notater.
+    • Hvis servers har minst ett element, brukes den listen; ellers legacy channelId.
+
+  translation:
+    • discordEmbed: alle nøkler som Configuration.ts validerer (title,
+      titleStatus, descriptionOnline/Offline/Unknown, titleBotUptime,
+      titleServerLatency, titleServerName, titleServerPassword, titleServerTime,
+      titleServerMap, titleServerMods, titlePlayerCount, noPlayersOnline)
+    • common: monthJanuary … monthDecember (alle tolv)
+
+  Viktig: Ikke legg eksempel-token i git. Bruk .gitignore for config.json hvis
+  repo brukes offentlig.
+
+  ──────────────────────────────────────────────────────────────────────────
+  4. DISCORD DEVELOPER PORTAL (BRUKER MÅ GJØRE NOE MANUELT)
+  ──────────────────────────────────────────────────────────────────────────
+  Be brukeren om å:
+  • Opprette app på https://discord.com/developers/applications
+  • Legge til Bot, kopiere token inn i config.json
+  • OAuth2 URL Generator: scopes «bot» + «applications.commands»
+  • Velge passende Bot Permissions; invitere bot til server
+  • Aktivere Utviklermodus i Discord for å kopiere guildId og channelId
+
+  ──────────────────────────────────────────────────────────────────────────
+  5. WINDOWS: FARMINGBOT.bat
+  ──────────────────────────────────────────────────────────────────────────
+  Filen FARMINGBOT.bat inneholder `cd /d "..."` til prosjektmappen. Hvis bruker
+  har lagret prosjektet annet sted, oppdater den linjen til full sti til rotmappen.
+  Bat-filen setter: NODE_OPTIONS=--no-deprecation, LOG_LEVEL=error, title FARMINGBOT.
+
+  ──────────────────────────────────────────────────────────────────────────
+  6. START
+  ──────────────────────────────────────────────────────────────────────────
+  Fra prosjektrot:
+      npm start
+  (kompilerer og kjører build/Main.js). Alternativt: dobbeltklikk FARMINGBOT.bat
+  på Windows.
+
+  Forventet: Bot logger inn, oppdaterer status-embed i konfigurerte kanaler.
+  Ved konfigurasjonsfeil avslutter prosessen med melding om config.
+
+  ──────────────────────────────────────────────────────────────────────────
+  7. OPPSLAG I KODEBASE (HVIS DU TREKKER KONKLUSJONER)
+  ──────────────────────────────────────────────────────────────────────────
+  • source/Services/Configuration.ts – validering av config
+  • source/Main.ts – oppstart
+  • source/Services/DiscordEmbed.ts – embed og responstid (ICMP/HTTP internt)
+  • SETTINGS.md – tabell over config-nøkler (engelsk)
+
+  ──────────────────────────────────────────────────────────────────────────
+  8. FEILSØKING (KORT)
+  ──────────────────────────────────────────────────────────────────────────
+  • Missing Access: kanal-ID, rettigheter, bot i riktig guild
+  • /status mangler: invitasjon med applications.commands
+  • Stille konsoll: LOG_LEVEL=info for mer detaljer
+  • bot-crash.log ved alvorlige krasj
+
+  ──────────────────────────────────────────────────────────────────────────
+  9. DOCKER (VALGFRITT)
+  ──────────────────────────────────────────────────────────────────────────
+  Hvis bruker vil kjøre i container: les Dockerfile og docker-compose.yml;
+  config.json må fortsatt tilgjengeliggjøres for containeren.
+
+  ──────────────────────────────────────────────────────────────────────────
+  SLUTT PÅ MANUS – Juster stegene etter faktisk prosjektversjon om nødvendig.
+================================================================================

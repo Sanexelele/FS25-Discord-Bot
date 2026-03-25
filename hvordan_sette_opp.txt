@@ -83,6 +83,9 @@ Les den gjennom én gang før du setter i gang.
     serverStatsUrl
       Lenke til XML-feed med serverstatus. Må være tilgjengelig for maskinen
       som kjører boten (eller bruk offentlig IP hvis bot kjører et annet sted).
+      Verten (IP eller domenenavn) i URL-en brukes internt til å måle
+      responstid (ICMP der det er mulig, ellers HTTP til feeden). IP vises
+      ikke i Discord-embed.
 
     serverMapUrl
       Lenke til kart-bilde (brukes som liten «thumbnail» i Discord-embed).
@@ -123,8 +126,12 @@ Les den gjennom én gang før du setter i gang.
   ──────────────────────────────────────────────────────────────────────────
 
     Tekster i Discord-embed (titler, «server offline», månednavn, osv.).
-    Alle nøkler som SETTINGS.md beskriver må finnes – ellers klager boten ved start.
+    Alle nøkler som SETTINGS.md lister må finnes – ellers avslutter boten ved
+    start med feilmelding om konfigurasjon.
 
+    titleServerLatency
+      Etikett for feltet som viser responstid i millisekunder (f.eks.
+      «Dedikert server»). Verdien i embed er kun «X ms» eller «—» (ingen IP).
 
   Utvikler-modus i Discord (for å kopiere ID-er):
     Brukerinnstillinger → Avansert → Utviklermodus PÅ.
@@ -140,9 +147,13 @@ Les den gjennom én gang før du setter i gang.
 
     Dette kjører først TypeScript-kompilering, deretter node build/Main.js.
 
-  Metode B – dobbeltklikk på STARTFARMINGBOT.bat (Windows)
-    Bat-filen setter blant annet LOG_LEVEL=error (stille drift) og starter
-    npm start. Du ser en kort «Bot online …»-linje når alt er OK.
+  Metode B – dobbeltklikk på FARMINGBOT.bat (Windows)
+    • CMD-vinduet får tittelen «FARMINGBOT» (title).
+    • Bat-filen setter NODE_OPTIONS=--no-deprecation, LOG_LEVEL=error (stille
+      drift), grønn tekst (color 0A), og kjører npm start.
+    • Stien i bat-filen er satt til prosjektmappen. Hvis du har lagret boten et
+      annet sted enn det som står i `cd /d "..."`-linjen, må du redigere den
+      linjen i FARMINGBOT.bat så den peker til din mappe.
 
   Etter endringer i config.json: stopp boten (Ctrl+C) og start på nytt.
 
@@ -161,17 +172,19 @@ Les den gjennom én gang før du setter i gang.
 
 
 --------------------------------------------------------------------------------
-7. NYTTIG Å VITE (SAMME SOM VI HAR SNAKKET OM)
+7. NYTTIG Å VITE
 --------------------------------------------------------------------------------
 
   • Node må være installert – boten er et Node.js-program.
-  • npm install én gang, deretter npm start (eller .bat) når du vil kjøre.
+  • npm install én gang, deretter npm start (eller FARMINGBOT.bat) når du vil kjøre.
   • config.json er den eneste konfigurasjonsfilen boten faktisk bruker.
   • bot-crash.log kan få inn alvorlige feil (krasj / avviste promises).
   • Standard logging er stille (kun feil); for mer tekst i konsollen kan du
-    sette miljøvariabel LOG_LEVEL=info før start (f.eks. i .bat-filen).
+    sette miljøvariabel LOG_LEVEL=info før start (f.eks. i FARMINGBOT.bat).
   • Inviter boten til hver Discord-server som skal ha status, og gi riktige
     kanal-ID-er og guild-ID-er i «servers».
+  • Legg aldri bot-token eller passord i åpen chat eller offentlige repo –
+    bruk .gitignore for config.json hvis du versjonerer kode.
 
 
 --------------------------------------------------------------------------------
@@ -180,6 +193,8 @@ Les den gjennom én gang før du setter i gang.
 
   • Windows: Task Scheduler eller et verktøy som PM2 for å starte boten ved
     pålogging/reboot og starte den på nytt ved krasj.
+  • Docker: se Dockerfile og docker-compose.yml i prosjektet hvis du vil kjøre
+    i container.
   • Ta backup av config.json et trygt sted (uten å dele token).
 
 
@@ -203,5 +218,6 @@ Les den gjennom én gang før du setter i gang.
 
 
 ================================================================================
-  Slutt på veiledningen. Juster teksten etter behov når du gjennomgår den.
+  Slutt på veiledningen. Se også MANUS-AI automatisk setup manus.txt hvis du
+  vil gi en AI et fullstendig manus for automatisk oppsett på ny maskin.
 ================================================================================
