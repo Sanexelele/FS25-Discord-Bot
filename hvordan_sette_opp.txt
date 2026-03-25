@@ -1,0 +1,207 @@
+================================================================================
+  FS25 Discord Bot – hvordan sette opp (steg-for-steg)
+================================================================================
+
+Denne filen forklarer enkelt hva du trenger på PC-en, hvordan du lager bot i
+Discord, hvordan du fyller inn config.json, og hvordan du starter boten.
+Les den gjennom én gang før du setter i gang.
+
+
+--------------------------------------------------------------------------------
+1. HVA DU TRENGER PÅ MASKINEN
+--------------------------------------------------------------------------------
+
+  • Node.js (LTS-anbefalt)
+    Last ned fra: https://nodejs.org/
+    Når Node er installert, får du også «npm» (pakkehåndtering) i terminalen.
+
+  • Sjekk at det fungerer (åpne PowerShell eller CMD og skriv):
+      node -v
+      npm -v
+    Du skal se versjonsnummer for begge.
+
+  • Prosjektmappen til boten (der package.json og config.json ligger).
+
+  Du trenger IKKE å installere TypeScript globalt – prosjektet bruker TypeScript
+  som ligger i node_modules når du kjører npm install.
+
+
+--------------------------------------------------------------------------------
+2. FØRSTE GANG: INSTALLER AVHENGIGHETER
+--------------------------------------------------------------------------------
+
+  I prosjektmappen (mappen der denne filen ligger), åpne terminal og kjør:
+
+      npm install
+
+  Det laster ned discord.js, winston, osv. som står i package.json.
+  Gjør dette én gang etter at du har klonet/kopiert prosjektet.
+
+
+--------------------------------------------------------------------------------
+3. DISCORD: LAGE EN BOT OG FÅ TOKEN
+--------------------------------------------------------------------------------
+
+  A) Gå til Discord Developer Portal
+     https://discord.com/developers/applications
+
+  B) «New Application» → gi den et navn → lagre.
+
+  C) I menyen til venstre: «Bot» → «Add Bot».
+     Her finner du BOT TOKEN. Trykk «Copy» og oppbevar den trygt.
+     • Ikke del token offentlig eller legg det i åpen chat.
+     • Hvis noen får tak i token, kan de styre boten – da må du «Regenerate»
+       i portalen og oppdatere config.json.
+
+  D) OAuth2 → «URL Generator» (eller tilsvarende steg for invitasjonslenke):
+     • Under «Scopes»: huk av «bot» OG «applications.commands»
+       (applications.commands trengs for /status og andre slash-kommandoer.)
+     • Under «Bot Permissions»: velg det serveren din trenger. Administrator
+       fungerer, men du kan senere stramme inn til færre rettigheter.
+
+  E) Kopier den genererte invitasjons-URL-en og åpne den i nettleser for å
+     legge boten inn på Discord-serveren(e) du vil bruke.
+
+  F) På selve Discord-serveren: sørg for at bot-rollen har tilgang til de
+     kanalene der status skal vises (se punkt 6 om kanal-ID).
+
+
+--------------------------------------------------------------------------------
+4. CONFIG.JSON – HOVEDFILEN DU REDIGERER
+--------------------------------------------------------------------------------
+
+  Boten leser KUN filen «config.json» i rotmappen (samme mappe som package.json).
+  Det finnes ingen annen «eksempel-fil» som må kopieres – du redigerer
+  config.json direkte.
+
+  Viktige deler:
+
+  ──────────────────────────────────────────────────────────────────────────
+  application  (Farming Simulator / dedikert server)
+  ──────────────────────────────────────────────────────────────────────────
+
+    serverStatsUrl
+      Lenke til XML-feed med serverstatus. Må være tilgjengelig for maskinen
+      som kjører boten (eller bruk offentlig IP hvis bot kjører et annet sted).
+
+    serverMapUrl
+      Lenke til kart-bilde (brukes som liten «thumbnail» i Discord-embed).
+
+    webInterfaceUsername / webInterfacePassword
+      Hvis dedikert server krever innlogging (HTTP 401) for /feed/-URL-ene,
+      fyll inn samme brukernavn/passord som til webgrensesnittet.
+
+    serverPassword
+      Passord spillere bruker for å bli med på FS-serveren (vises i embed).
+
+    updateIntervalSeconds
+      Hvor ofte (sekunder) status oppdateres i Discord.
+
+    embedImageUrl (valgfritt)
+      HTTPS-lenke til et stort bilde under teksten i embed (f.eks. logo/banner).
+
+  ──────────────────────────────────────────────────────────────────────────
+  discord
+  ──────────────────────────────────────────────────────────────────────────
+
+    botToken
+      Lim inn bot-tokenet fra Developer Portal (se punkt 3).
+
+    Én kanal (enkelt oppsett):
+      «channelId»: ID til tekstkanalen der den levende status-meldingen skal bo.
+
+    Flere servere / flere kanaler:
+      Bruk «servers» som en liste. For hver rad trenger du:
+        • guildId  = Discord-serverens ID (høyreklikk serverikon → Kopier server-ID)
+        • channelId = tekstkanalens ID (høyreklikk kanal → Kopier kanal-ID)
+        • label (valgfritt) = bare notat til deg selv (JSON støtter ikke // kommentarer)
+
+      Hvis «servers» har minst én oppføring, ignoreres det enkle «channelId»-feltet.
+
+  ──────────────────────────────────────────────────────────────────────────
+  translation
+  ──────────────────────────────────────────────────────────────────────────
+
+    Tekster i Discord-embed (titler, «server offline», månednavn, osv.).
+    Alle nøkler som SETTINGS.md beskriver må finnes – ellers klager boten ved start.
+
+
+  Utvikler-modus i Discord (for å kopiere ID-er):
+    Brukerinnstillinger → Avansert → Utviklermodus PÅ.
+
+
+--------------------------------------------------------------------------------
+5. SLIK STARTER DU BOTEN
+--------------------------------------------------------------------------------
+
+  Metode A – fra terminal i prosjektmappen:
+
+      npm start
+
+    Dette kjører først TypeScript-kompilering, deretter node build/Main.js.
+
+  Metode B – dobbeltklikk på STARTFARMINGBOT.bat (Windows)
+    Bat-filen setter blant annet LOG_LEVEL=error (stille drift) og starter
+    npm start. Du ser en kort «Bot online …»-linje når alt er OK.
+
+  Etter endringer i config.json: stopp boten (Ctrl+C) og start på nytt.
+
+
+--------------------------------------------------------------------------------
+6. RETTIGHETER PÅ DISCORD (KORT)
+--------------------------------------------------------------------------------
+
+  For at boten skal kunne sende og oppdatere embed i en kanal trenger den blant
+  annet: se kanalen, sende meldinger, bruke embeds, og ofte «Administrer
+  meldinger» (fordi boten kan slette meldinger i kanalen ved oppstart for å
+  rydde – avhengig av hvordan koden er satt opp).
+
+  Slash-kommandoen /status krever at du har invitert med
+  «applications.commands» (se punkt 3D).
+
+
+--------------------------------------------------------------------------------
+7. NYTTIG Å VITE (SAMME SOM VI HAR SNAKKET OM)
+--------------------------------------------------------------------------------
+
+  • Node må være installert – boten er et Node.js-program.
+  • npm install én gang, deretter npm start (eller .bat) når du vil kjøre.
+  • config.json er den eneste konfigurasjonsfilen boten faktisk bruker.
+  • bot-crash.log kan få inn alvorlige feil (krasj / avviste promises).
+  • Standard logging er stille (kun feil); for mer tekst i konsollen kan du
+    sette miljøvariabel LOG_LEVEL=info før start (f.eks. i .bat-filen).
+  • Inviter boten til hver Discord-server som skal ha status, og gi riktige
+    kanal-ID-er og guild-ID-er i «servers».
+
+
+--------------------------------------------------------------------------------
+8. VALGFRITT: KJØRE BOTEN MER «PROFFT»
+--------------------------------------------------------------------------------
+
+  • Windows: Task Scheduler eller et verktøy som PM2 for å starte boten ved
+    pålogging/reboot og starte den på nytt ved krasj.
+  • Ta backup av config.json et trygt sted (uten å dele token).
+
+
+--------------------------------------------------------------------------------
+9. FEILSØKING (KORT)
+--------------------------------------------------------------------------------
+
+  «Missing Access» / bot gjør ingenting i kanalen
+    → Sjekk kanal-ID, at bot er i serveren, og kanal-/kategori-rettigheter.
+
+  Slash-kommando /status finnes ikke
+    → Inviter med «applications.commands», vent litt (globale kommandoer kan
+      ta tid), eller start boten på nytt.
+
+  Ingen output i vinduet
+    → Ved suksess er logging ofte stille (kun feil). Se etter linjen som sier at
+      boten er online, eller sett LOG_LEVEL=info for mer detaljer.
+
+  Bygg feiler (TypeScript)
+    → Kjør «npm install» på nytt og sjekk at node -v fungerer.
+
+
+================================================================================
+  Slutt på veiledningen. Juster teksten etter behov når du gjennomgår den.
+================================================================================
