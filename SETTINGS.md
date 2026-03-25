@@ -10,6 +10,7 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | (*) application.serverMapUrl                 | The feed URL to the server map (from the web interface from the server)   |
 | application.webInterfaceUsername             | Web interface login (HTTP Basic); required if the feed returns 401        |
 | application.webInterfacePassword             | Web interface password; use with webInterfaceUsername                     |
+| application.embedImageUrl                    | Optional large image under the embed body (HTTPS URL; e.g. banner/logo)   |
 | (*) application.updateIntervalSeconds        | The interval in seconds to update the server stats                        |
 | (*) discord.botToken                         | The bot token from the Discord Developer Portal                           |
 | (*) discord.channelId                        | Single server: text channel id for the live status (ignored if `servers` is set) |

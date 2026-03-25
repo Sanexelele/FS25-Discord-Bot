@@ -199,6 +199,10 @@ export default class DiscordEmbed {
                 },
             );
         }
+        const bannerUrl = config.application.embedImageUrl?.trim();
+        if (bannerUrl) {
+            embed.setImage(bannerUrl);
+        }
         return embed;
     }
 }

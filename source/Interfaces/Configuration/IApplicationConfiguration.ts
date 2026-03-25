@@ -6,4 +6,6 @@ export default interface IApplicationConfiguration {
     /** HTTP Basic Auth user for /feed/ URLs when the web interface requires login (401). */
     webInterfaceUsername?: string;
     webInterfacePassword?: string;
+    /** Large image below embed fields (HTTPS URL). Discord shows it above the footer/timestamp. */
+    embedImageUrl?: string;
 }
