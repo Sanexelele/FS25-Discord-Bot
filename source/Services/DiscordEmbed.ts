@@ -1,6 +1,7 @@
 import {Channel, Client, EmbedBuilder, Snowflake, TextChannel} from "discord.js";
 import Configuration from "./Configuration";
 import type {IDiscordServerChannel} from "../Interfaces/Configuration/IDiscordConfiguration";
+import type ITranslationDiscordEmbed from "../Interfaces/Configuration/ITranslationDiscordEmbed";
 import ServerStatusFeed from "./ServerStatusFeed";
 import WebFeedAuth from "./WebFeedAuth";
 import {Logger} from "winston";
@@ -19,6 +20,44 @@ function isDiscordChannelAccessError(e: unknown): boolean {
     }
     const err = e as { code?: number; message?: string };
     return err.code === 50001 || err.code === 50013;
+}
+
+/** Norwegian-style uptime for the bot process */
+function formatProcessUptime(): string {
+    let sec = Math.floor(process.uptime());
+    const d = Math.floor(sec / 86400);
+    sec %= 86400;
+    const h = Math.floor(sec / 3600);
+    sec %= 3600;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    const parts: string[] = [];
+    if (d > 0) {
+        parts.push(`${d} d`);
+    }
+    if (h > 0) {
+        parts.push(`${h} t`);
+    }
+    if (m > 0) {
+        parts.push(`${m} min`);
+    }
+    if (parts.length === 0) {
+        parts.push(`${s} s`);
+    } else if (d === 0 && h === 0) {
+        parts.push(`${s} s`);
+    }
+    return parts.join(" ");
+}
+
+function statusDescriptionLine(t: ITranslationDiscordEmbed, mode: "online" | "offline" | "unknown"): string {
+    const emoji = mode === "online" ? "🟢" : mode === "offline" ? "🔴" : "🟡";
+    const text =
+        mode === "online" ? t.descriptionOnline : mode === "offline" ? t.descriptionOffline : t.descriptionUnknown;
+    return `${emoji} **${t.titleStatus}** — ${text}`;
+}
+
+function fieldName(emoji: string, label: string): string {
+    return `${emoji} ${label}`;
 }
 
 export default class DiscordEmbed {
@@ -49,12 +88,14 @@ export default class DiscordEmbed {
         })();
     }
 
-    /**
-     * Refresh the XML feed and build the same embed used for the live status message (for /status).
-     */
     public async buildStatusEmbed(): Promise<EmbedBuilder> {
         await this.serverStatsFeed.updateServerFeed();
         return this.generateEmbedFromStatusFeed(this.serverStatsFeed);
+    }
+
+    private formatDiscordPing(): string {
+        const p = this.discordAppClient.ws.ping;
+        return typeof p === "number" && p >= 0 ? `${p} ms` : "—";
     }
 
     private async updateDiscordEmbed(): Promise<void> {
@@ -151,26 +192,44 @@ export default class DiscordEmbed {
     }
 
     private async generateEmbedFromStatusFeed(serverStats: ServerStatusFeed): Promise<EmbedBuilder> {
-        let embed = new EmbedBuilder();
-        let config = this.appConfiguration;
+        const embed = new EmbedBuilder();
+        const config = this.appConfiguration;
+        const t = config.translation.discordEmbed;
 
-        embed.setTitle(config.translation.discordEmbed.title);
+        embed.setTitle(`🚜 ${t.title}`);
+
+        const metaFields = [
+            {
+                name: fieldName("⏱️", t.titleBotUptime),
+                value: formatProcessUptime(),
+                inline: true,
+            },
+            {
+                name: fieldName("📶", t.titleDiscordPing),
+                value: this.formatDiscordPing(),
+                inline: true,
+            },
+        ];
+
         if (!serverStats.isOnline()) {
             embed.setColor(0xca0000);
-            embed.setDescription(config.translation.discordEmbed.descriptionOffline);
+            embed.setDescription(statusDescriptionLine(t, "offline"));
+            embed.addFields(...metaFields);
         } else if (serverStats.isFetching()) {
-            embed.setDescription(config.translation.discordEmbed.descriptionUnknown);
+            embed.setColor(0xfaa61a);
+            embed.setDescription(statusDescriptionLine(t, "unknown"));
+            embed.addFields(...metaFields);
         } else {
             embed.setColor(0x00ca00);
-            embed.setDescription(config.translation.discordEmbed.descriptionOnline);
+            embed.setDescription(statusDescriptionLine(t, "online"));
             embed.setTimestamp(new Date());
             embed.setThumbnail(WebFeedAuth.getMapUrlWithAuth(config.application));
 
             let playerListString: string;
-            let playerListTitleString = `${config.translation.discordEmbed.titlePlayerCount} (${serverStats.getPlayerCount() ?? 0}/${serverStats.getMaxPlayerCount() ?? 0}):`;
+            let playerListTitleString = `${t.titlePlayerCount} (${serverStats.getPlayerCount() ?? 0}/${serverStats.getMaxPlayerCount() ?? 0}):`;
 
             if (serverStats.getPlayerList().length === 0) {
-                playerListString = config.translation.discordEmbed.noPlayersOnline;
+                playerListString = t.noPlayersOnline;
             } else {
                 playerListString = serverStats.getPlayerList().map((p) => p.username).join(", ");
             }
@@ -186,19 +245,21 @@ export default class DiscordEmbed {
                 serverModsText = await this.truncateText(serverMods.map((mod) => `${mod.name}`).join(", "));
             }
 
-            // @ts-ignore
             embed.addFields(
-                {name: config.translation.discordEmbed.titleServerName, value: serverStats.getServerName()},
-                {name: config.translation.discordEmbed.titleServerPassword, value: serverPassword},
-                {name: config.translation.discordEmbed.titleServerTime, value: serverStats.getServerTime()},
-                {name: config.translation.discordEmbed.titleServerMap, value: serverStats.getServerMap()},
-                {name: config.translation.discordEmbed.titleServerMods, value: serverModsText},
+                ...metaFields,
+                // @ts-ignore
+                {name: fieldName("🖥️", t.titleServerName), value: serverStats.getServerName()},
+                {name: fieldName("🔑", t.titleServerPassword), value: serverPassword},
+                {name: fieldName("🕐", t.titleServerTime), value: serverStats.getServerTime()},
+                {name: fieldName("🗺️", t.titleServerMap), value: serverStats.getServerMap()},
+                {name: fieldName("📦", t.titleServerMods), value: serverModsText},
                 {
-                    name: playerListTitleString,
+                    name: fieldName("👥", playerListTitleString),
                     value: playerListString,
                 },
             );
         }
+
         const bannerUrl = config.application.embedImageUrl?.trim();
         if (bannerUrl) {
             embed.setImage(bannerUrl);

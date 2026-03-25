@@ -16,6 +16,9 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | (*) discord.channelId                        | Single server: text channel id for the live status (ignored if `servers` is set) |
 | discord.servers                              | Multiple servers: array of `{ "guildId", "channelId", "label"? }`. Optional `label` is only for your notes (not sent to Discord). |
 | translation.discordEmbed.title               | The title of the Discord embed                                            |
+| translation.discordEmbed.titleStatus         | Word shown in the STATUS line (e.g. STATUS)                               |
+| translation.discordEmbed.titleBotUptime      | Label for bot process uptime                                              |
+| translation.discordEmbed.titleDiscordPing    | Label for Discord gateway ping (ms)                                       |
 | translation.discordEmbed.descriptionOnline   | The description when the server is online                                 |
 | translation.discordEmbed.descriptionOffline  | The description when the server is offline                                |
 | translation.discordEmbed.descriptionUnknown  | The description when the server status is unknown                         |
