@@ -72,8 +72,13 @@ export default class ServerStatusFeed {
             }
             const text = await response.text();
             this._lastFeedLatencyMs = Date.now() - t0;
-            this._isOnline = true;
             const parsedFeed = new XMLParser({ignoreAttributes: false, attributeNamePrefix: ''}).parse(text) as ServerStats;
+            if (!parsedFeed?.Server?.Slots) {
+                this._isOnline = false;
+                Logging.getLogger().warn(`Server status feed is missing expected Server/Slots data`);
+                return null;
+            }
+            this._isOnline = true;
             this._serverStats = parsedFeed;
         } catch (reason: any) {
             this._lastFeedLatencyMs = null;
@@ -196,7 +201,7 @@ export default class ServerStatusFeed {
     public getPlayerList(): IPlayer[] {
         let mappedPlayers: IPlayer[];
         let returnPlayers: IPlayer[] = [];
-        let playerList = this.getServerStats()?.Server.Slots.Player;
+        let playerList = this.getServerStats()?.Server?.Slots?.Player;
         if (Array.isArray(playerList)) {
             mappedPlayers = playerList.map((player) => {
                 return {
