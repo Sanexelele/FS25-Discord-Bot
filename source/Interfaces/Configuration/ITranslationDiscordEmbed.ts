@@ -15,4 +15,6 @@ export default interface ITranslationDiscordEmbed {
     titleServerTime: string;
     titlePlayerCount: string;
     noPlayersOnline: string;
+    /** Label for optional mod-pack link button; falls back to Norwegian default if omitted */
+    labelModPackButton?: string;
 }

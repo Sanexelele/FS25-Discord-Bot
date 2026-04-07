@@ -1,4 +1,13 @@
-import {Channel, Client, EmbedBuilder, Snowflake, TextChannel} from "discord.js";
+import {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    Channel,
+    Client,
+    EmbedBuilder,
+    Snowflake,
+    TextChannel,
+} from "discord.js";
 import Configuration from "./Configuration";
 import type {IDiscordServerChannel} from "../Interfaces/Configuration/IDiscordConfiguration";
 import type ITranslationDiscordEmbed from "../Interfaces/Configuration/ITranslationDiscordEmbed";
@@ -69,6 +78,15 @@ function hostFromStatsUrl(url: string): string {
     }
 }
 
+/** Discord rejects empty embed field values; normalize undefined/null/blank to an em dash. */
+function embedFieldValue(raw: unknown): string {
+    if (raw === undefined || raw === null) {
+        return "—";
+    }
+    const s = String(raw).trim();
+    return s.length > 0 ? s : "—";
+}
+
 export default class DiscordEmbed {
     private static instance: DiscordEmbed | null = null;
 
@@ -83,6 +101,9 @@ export default class DiscordEmbed {
     /** Tracked status message per channel */
     private firstMessageIds = new Map<string, Snowflake>();
     private channelAccessErrorsLogged = new Set<string>();
+    private static modPackUrlWarnLogged = false;
+    private discordUpdateErrorThrottle = new Map<string, number>();
+    private readonly discordUpdateErrorThrottleMs = 120_000;
 
     public constructor(discordAppClient: Client) {
         DiscordEmbed.instance = this;
@@ -92,14 +113,50 @@ export default class DiscordEmbed {
         this.serverStatsFeed = new ServerStatusFeed();
 
         (async () => {
-            await this.deleteAllMessages();
-            await this.updateDiscordEmbed();
+            try {
+                await this.deleteAllMessages();
+                await this.updateDiscordEmbed();
+            } catch (e: unknown) {
+                Logging.getLogger().warn(`Initial status update failed: ${e instanceof Error ? e.message : String(e)}`);
+            }
         })();
     }
 
     public async buildStatusEmbed(): Promise<EmbedBuilder> {
         await this.serverStatsFeed.updateServerFeed();
         return this.generateEmbedFromStatusFeed(this.serverStatsFeed);
+    }
+
+    /** Link button row under the status embed; empty array if URL not set or invalid. */
+    public buildStatusComponents(): ActionRowBuilder<ButtonBuilder>[] {
+        const raw = this.appConfiguration.application.modPackButtonUrl?.trim();
+        if (!raw) {
+            return [];
+        }
+        const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+        let parsed: URL;
+        try {
+            parsed = new URL(withScheme);
+        } catch {
+            if (!DiscordEmbed.modPackUrlWarnLogged) {
+                DiscordEmbed.modPackUrlWarnLogged = true;
+                this.appLogger.warn("application.modPackButtonUrl is not a valid URL; mod pack button disabled.");
+            }
+            return [];
+        }
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            if (!DiscordEmbed.modPackUrlWarnLogged) {
+                DiscordEmbed.modPackUrlWarnLogged = true;
+                this.appLogger.warn("application.modPackButtonUrl must be http or https; mod pack button disabled.");
+            }
+            return [];
+        }
+        const t = this.appConfiguration.translation.discordEmbed;
+        const label = (t.labelModPackButton?.trim() || "Link til modpakkene").slice(0, 80);
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(label).setURL(withScheme),
+        );
+        return [row];
     }
 
     /** ICMP when possible, else HTTP feed latency; value is ms only (no host / protocol labels). */
@@ -132,7 +189,8 @@ export default class DiscordEmbed {
                 await this.updateChannelStatusEmbed(embedCopy, target);
             }
         } catch (exception: unknown) {
-            this.appLogger.error(exception);
+            const msg = exception instanceof Error ? exception.message : String(exception);
+            this.appLogger.warn(`Status embed update failed: ${msg}`);
         }
 
         setTimeout(() => {
@@ -151,9 +209,10 @@ export default class DiscordEmbed {
                 return;
             }
             const textChannel = channel as TextChannel;
+            const components = this.buildStatusComponents();
 
             const sendInitialMessage = async (embed: EmbedBuilder) => {
-                const message = await textChannel.send({embeds: [embed]});
+                const message = await textChannel.send({embeds: [embed], components});
                 this.firstMessageIds.set(channelId, message.id);
             };
 
@@ -161,7 +220,7 @@ export default class DiscordEmbed {
             if (firstId !== null) {
                 try {
                     const message = await textChannel.messages.fetch(firstId);
-                    await message.edit({embeds: [embedMessage]});
+                    await message.edit({embeds: [embedMessage], components});
                 } catch {
                     await sendInitialMessage(embedMessage);
                 }
@@ -178,7 +237,17 @@ export default class DiscordEmbed {
                     );
                 }
             } else {
-                this.appLogger.error(exception);
+                const code = typeof exception === "object" && exception !== null && "code" in exception
+                    ? (exception as {code?: number}).code
+                    : undefined;
+                const key = `${channelId}:${code ?? "err"}`;
+                const now = Date.now();
+                const last = this.discordUpdateErrorThrottle.get(key) ?? 0;
+                if (now - last >= this.discordUpdateErrorThrottleMs) {
+                    this.discordUpdateErrorThrottle.set(key, now);
+                    const msg = exception instanceof Error ? exception.message : String(exception);
+                    this.appLogger.warn(`Discord status update failed (${channelId}): ${msg}`);
+                }
             }
         }
     }
@@ -267,14 +336,17 @@ export default class DiscordEmbed {
             embed.addFields(
                 ...metaFields,
                 // @ts-ignore
-                {name: fieldName("🖥️", t.titleServerName), value: serverStats.getServerName()},
-                {name: fieldName("🔑", t.titleServerPassword), value: serverPassword},
-                {name: fieldName("🕐", t.titleServerTime), value: serverStats.getServerTime()},
-                {name: fieldName("🗺️", t.titleServerMap), value: serverStats.getServerMap()},
-                {name: fieldName("📦", t.titleServerMods), value: serverModsText},
+                {
+                    name: fieldName("🖥️", t.titleServerName),
+                    value: embedFieldValue(serverStats.getServerName()),
+                },
+                {name: fieldName("🔑", t.titleServerPassword), value: embedFieldValue(serverPassword)},
+                {name: fieldName("🕐", t.titleServerTime), value: embedFieldValue(serverStats.getServerTime())},
+                {name: fieldName("🗺️", t.titleServerMap), value: embedFieldValue(serverStats.getServerMap())},
+                {name: fieldName("📦", t.titleServerMods), value: embedFieldValue(serverModsText)},
                 {
                     name: fieldName("👥", playerListTitleString),
-                    value: playerListString,
+                    value: embedFieldValue(playerListString),
                 },
             );
         }

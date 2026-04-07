@@ -103,6 +103,15 @@ Les den gjennom én gang før du setter i gang.
     embedImageUrl (valgfritt)
       HTTPS-lenke til et stort bilde under teksten i embed (f.eks. logo/banner).
 
+    modPackButtonUrl (valgfritt)
+      Lenke som åpnes når man trykker knappen under status-meldingen
+      («Link til modpakkene»). Tom streng = ingen knapp. Du kan skrive
+      f.eks. «www.example.com» – boten legger automatisk til https:// hvis
+      du utelater «http://» eller «https://».
+
+    labelModPackButton (valgfritt, under translation.discordEmbed)
+      Tekst på knappen; standard er «Link til modpakkene» hvis feltet utelates.
+
   ──────────────────────────────────────────────────────────────────────────
   discord
   ──────────────────────────────────────────────────────────────────────────

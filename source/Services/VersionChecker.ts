@@ -18,10 +18,17 @@ export default class VersionChecker {
      * Get the latest released version of the bot from the github repository
      */
     public async getLatestReleasedVersion(): Promise<string> {
-        const response = await fetch(this.versionUrl);
-        const latestPackage = await response.text();
-        const latestVersion = JSON.parse(latestPackage)?.version;
-        return latestVersion;
+        try {
+            const response = await fetch(this.versionUrl);
+            if (!response.ok) {
+                return this.localPackageVersion;
+            }
+            const latestPackage = await response.text();
+            const parsed = JSON.parse(latestPackage) as {version?: string};
+            return typeof parsed?.version === "string" ? parsed.version : this.localPackageVersion;
+        } catch {
+            return this.localPackageVersion;
+        }
     }
 
     /**

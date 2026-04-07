@@ -11,6 +11,7 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | application.webInterfaceUsername             | Web interface login (HTTP Basic); required if the feed returns 401        |
 | application.webInterfacePassword             | Web interface password; use with webInterfaceUsername                     |
 | application.embedImageUrl                    | Optional large image under the embed body (HTTPS URL; e.g. banner/logo)   |
+| application.modPackButtonUrl                 | Optional URL for a link button under the status embed (mod packs); `https://` is added automatically if you omit the scheme (e.g. `www.example.com` works); empty = no button |
 | (*) application.updateIntervalSeconds        | The interval in seconds to update the server stats                        |
 | (*) discord.botToken                         | The bot token from the Discord Developer Portal                           |
 | (*) discord.channelId                        | Single server: text channel id for the live status (ignored if `servers` is set) |
@@ -18,7 +19,8 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | translation.discordEmbed.title               | The title of the Discord embed                                            |
 | translation.discordEmbed.titleStatus         | Word shown in the STATUS line (e.g. STATUS)                               |
 | translation.discordEmbed.titleBotUptime      | Label for bot process uptime                                              |
-| translation.discordEmbed.titleServerLatency  | Label for HTTP round-trip to `serverStatsUrl` (ms + host), not Discord ping |
+| translation.discordEmbed.titleServerLatency  | Label for dedicated server responsiveness (ms)                          |
+| translation.discordEmbed.labelModPackButton  | Optional label for the mod-pack link button (default: Norwegian text in code) |
 | translation.discordEmbed.descriptionOnline   | The description when the server is online                                 |
 | translation.discordEmbed.descriptionOffline  | The description when the server is offline                                |
 | translation.discordEmbed.descriptionUnknown  | The description when the server status is unknown                         |

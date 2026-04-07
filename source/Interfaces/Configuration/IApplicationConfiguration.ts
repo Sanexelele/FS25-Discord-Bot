@@ -8,4 +8,9 @@ export default interface IApplicationConfiguration {
     webInterfacePassword?: string;
     /** Large image below embed fields (HTTPS URL). Discord shows it above the footer/timestamp. */
     embedImageUrl?: string;
+    /**
+     * HTTPS (or http) URL for the «mod pack» link button under the status embed.
+     * Leave empty or omit to hide the button.
+     */
+    modPackButtonUrl?: string;
 }

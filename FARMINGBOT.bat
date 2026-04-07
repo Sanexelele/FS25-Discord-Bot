@@ -1,6 +1,7 @@
 @echo off
 set NODE_OPTIONS=--no-deprecation
 set LOG_LEVEL=error
+REM For no console output at all, use: set LOG_LEVEL=silent
 color 0A
 title FARMINGBOT
 cd /d "C:\Users\Administrator\Desktop\BOTS\FS25-Discord-Bot"

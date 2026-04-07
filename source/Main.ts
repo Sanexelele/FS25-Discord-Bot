@@ -51,6 +51,8 @@ versionChecker.checkVersionIsUpdated().then((isUpToDate: boolean): void => {
         appLogger.warn(`The bot is not up to date. Please update it soon.`);
         appLogger.warn(`Use: git pull && docker compose up -d --build`);
     }
+}).catch(() => {
+    /* optional check; ignore network / parse failures */
 });
 
 const discordClient = new Client({
@@ -76,9 +78,10 @@ discordClient.on("interactionCreate", async (interaction) => {
     await interaction.deferReply();
     try {
         const embed = await svc.buildStatusEmbed();
-        await interaction.editReply({embeds: [embed]});
+        const components = svc.buildStatusComponents();
+        await interaction.editReply({embeds: [embed], components});
     } catch (err: unknown) {
-        appLogger.error(err);
+        appLogger.warn(`Could not build status embed: ${err instanceof Error ? err.message : String(err)}`);
         await interaction.editReply({content: "Could not fetch server status."}).catch(() => {});
     }
 });

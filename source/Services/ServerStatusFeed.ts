@@ -15,8 +15,21 @@ export default class ServerStatusFeed {
     private _isFetching: boolean = false;
     /** Milliseconds for last successful HTTP round-trip to serverStatsUrl (feed XML). */
     private _lastFeedLatencyMs: number | null = null;
+    /** Avoids spamming the console when the feed fails on every poll (same message ≤ once per interval). */
+    private _feedWarnThrottle = new Map<string, number>();
+    private readonly _feedWarnThrottleMs = 120_000;
 
     constructor() {
+    }
+
+    private logFeedWarnThrottled(message: string): void {
+        const now = Date.now();
+        const last = this._feedWarnThrottle.get(message) ?? 0;
+        if (now - last < this._feedWarnThrottleMs) {
+            return;
+        }
+        this._feedWarnThrottle.set(message, now);
+        Logging.getLogger().warn(message);
     }
 
     /**
@@ -62,11 +75,11 @@ export default class ServerStatusFeed {
                 this._lastFeedLatencyMs = Date.now() - t0;
                 this._isOnline = false;
                 if (response.status === 401) {
-                    Logging.getLogger().warn(
-                        `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`
+                    this.logFeedWarnThrottled(
+                        `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`,
                     );
                 } else {
-                    Logging.getLogger().warn(`Server status feed returned HTTP ${response.status}`);
+                    this.logFeedWarnThrottled(`Server status feed returned HTTP ${response.status}`);
                 }
                 return null;
             }
@@ -75,7 +88,7 @@ export default class ServerStatusFeed {
             const parsedFeed = new XMLParser({ignoreAttributes: false, attributeNamePrefix: ''}).parse(text) as ServerStats;
             if (!parsedFeed?.Server?.Slots) {
                 this._isOnline = false;
-                Logging.getLogger().warn(`Server status feed is missing expected Server/Slots data`);
+                this.logFeedWarnThrottled(`Server status feed is missing expected Server/Slots data`);
                 return null;
             }
             this._isOnline = true;
@@ -86,13 +99,13 @@ export default class ServerStatusFeed {
             const code = reason?.cause?.code ?? reason?.code;
             switch (code) {
                 case CONNECTION_REFUSED:
-                    Logging.getLogger().warn(`Connection refused to server status feed`);
+                    this.logFeedWarnThrottled(`Connection refused to server status feed`);
                     break;
                 case NOT_FOUND:
-                    Logging.getLogger().warn(`Server status feed not found`);
+                    this.logFeedWarnThrottled(`Server status feed not found`);
                     break;
                 default:
-                    Logging.getLogger().warn(`Error fetching server status feed`);
+                    this.logFeedWarnThrottled(`Error fetching server status feed`);
                     break;
             }
             return null;
