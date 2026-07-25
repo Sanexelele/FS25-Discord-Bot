@@ -81,11 +81,20 @@ Les den gjennom én gang før du setter i gang.
   ──────────────────────────────────────────────────────────────────────────
 
     serverStatsUrl
-      Lenke til XML-feed med serverstatus. Må være tilgjengelig for maskinen
-      som kjører boten (eller bruk offentlig IP hvis bot kjører et annet sted).
-      Verten (IP eller domenenavn) i URL-en brukes internt til å måle
-      responstid (ICMP der det er mulig, ellers HTTP til feeden). IP vises
-      ikke i Discord-embed.
+      Lenke til XML-feed med serverdetaljer (navn, spillere, mods, …).
+      Viktig: Giants web-UI (port 8080/8081) kan kjøre selv om spilløkten er
+      stoppet. Online/offline styres IKKE av denne feeden alene.
+
+    gamePort (anbefalt, standard 10823)
+      TCP-sjekk mot spillporten er fasit for «Serveren er online».
+      Hvis du stopper spillserveren men lar dedicatedServer-webben stå,
+      skal Discord vise offline.
+
+    gameHost (valgfritt)
+      Host for spillport-sjekk. Utelates = hostname fra serverStatsUrl.
+
+    gamePortTimeoutMs (valgfritt, standard 3000)
+      Hvor lenge boten venter på TCP-svar før den anser porten som nede.
 
     serverMapUrl
       Lenke til kart-bilde (brukes som liten «thumbnail» i Discord-embed).
@@ -99,6 +108,7 @@ Les den gjennom én gang før du setter i gang.
 
     updateIntervalSeconds
       Hvor ofte (sekunder) status oppdateres i Discord.
+      Online/offline krever 2 like sjekker på rad (unngår flimmer).
 
     embedImageUrl (valgfritt)
       HTTPS-lenke til et stort bilde under teksten i embed (f.eks. logo/banner).
@@ -111,6 +121,10 @@ Les den gjennom én gang før du setter i gang.
 
     labelModPackButton (valgfritt, under translation.discordEmbed)
       Tekst på knappen; standard er «Link til modpakkene» hvis feltet utelates.
+
+    titleOfflineDuration (valgfritt, under translation.discordEmbed)
+      Feltetikett for hvor lenge serveren har vært bekreftet nede
+      (standard: «Frakoblet i»).
 
   ──────────────────────────────────────────────────────────────────────────
   discord

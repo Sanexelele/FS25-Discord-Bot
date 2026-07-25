@@ -11,8 +11,7 @@ import {
 import Configuration from "./Configuration";
 import type {IDiscordServerChannel} from "../Interfaces/Configuration/IDiscordConfiguration";
 import type ITranslationDiscordEmbed from "../Interfaces/Configuration/ITranslationDiscordEmbed";
-import ServerStatusFeed from "./ServerStatusFeed";
-import {icmpPingHost} from "./IcmpPing";
+import ServerStatusFeed, {formatOfflineDuration} from "./ServerStatusFeed";
 import WebFeedAuth from "./WebFeedAuth";
 import {Logger} from "winston";
 import Logging from "./Logging";
@@ -70,14 +69,6 @@ function fieldName(emoji: string, label: string): string {
     return `${emoji} ${label}`;
 }
 
-function hostFromStatsUrl(url: string): string {
-    try {
-        return new URL(url).hostname;
-    } catch {
-        return "?";
-    }
-}
-
 /** Discord rejects empty embed field values; normalize undefined/null/blank to an em dash. */
 function embedFieldValue(raw: unknown): string {
     if (raw === undefined || raw === null) {
@@ -85,6 +76,18 @@ function embedFieldValue(raw: unknown): string {
     }
     const s = String(raw).trim();
     return s.length > 0 ? s : "—";
+}
+
+function formatLatencyMs(serverStats: ServerStatusFeed): string {
+    const gameMs = serverStats.getGamePortLatencyMs();
+    if (gameMs !== null) {
+        return `${gameMs} ms`;
+    }
+    const httpMs = serverStats.getLastFeedLatencyMs();
+    if (httpMs !== null) {
+        return `${httpMs} ms`;
+    }
+    return "—";
 }
 
 export default class DiscordEmbed {
@@ -159,18 +162,9 @@ export default class DiscordEmbed {
         return [row];
     }
 
-    /** ICMP when possible, else HTTP feed latency; value is ms only (no host / protocol labels). */
-    private async formatServerLatency(serverStats: ServerStatusFeed): Promise<string> {
-        const host = hostFromStatsUrl(this.appConfiguration.application.serverStatsUrl);
-        const icmpMs = await icmpPingHost(host);
-        if (icmpMs !== null) {
-            return `${icmpMs} ms`;
-        }
-        const httpMs = serverStats.getLastFeedLatencyMs();
-        if (httpMs !== null) {
-            return `${httpMs} ms`;
-        }
-        return "—";
+    /** Game-port TCP RTT when available; else HTTP feed latency. */
+    private formatServerLatency(serverStats: ServerStatusFeed): string {
+        return formatLatencyMs(serverStats);
     }
 
     private async updateDiscordEmbed(): Promise<void> {
@@ -285,7 +279,7 @@ export default class DiscordEmbed {
 
         embed.setTitle(`🚜 ${t.title}`);
 
-        const latencyValue = await this.formatServerLatency(serverStats);
+        const latencyValue = this.formatServerLatency(serverStats);
         const metaFields = [
             {
                 name: fieldName("⏱️", t.titleBotUptime),
@@ -302,7 +296,24 @@ export default class DiscordEmbed {
         if (!serverStats.isOnline()) {
             embed.setColor(0xca0000);
             embed.setDescription(statusDescriptionLine(t, "offline"));
-            embed.addFields(...metaFields);
+            // Do not show bot process uptime here — it looks like "server uptime" and confuses when offline.
+            const offlineFields: {name: string; value: string; inline: boolean}[] = [
+                {
+                    name: fieldName("🌐", t.titleServerLatency),
+                    value: "—",
+                    inline: true,
+                },
+            ];
+            const offlineMs = serverStats.getOfflineDurationMs();
+            if (offlineMs != null) {
+                const offlineLabel = t.titleOfflineDuration?.trim() || "Frakoblet i";
+                offlineFields.push({
+                    name: fieldName("⌛", offlineLabel),
+                    value: formatOfflineDuration(offlineMs),
+                    inline: true,
+                });
+            }
+            embed.addFields(...offlineFields);
         } else if (serverStats.isFetching()) {
             embed.setColor(0xfaa61a);
             embed.setDescription(statusDescriptionLine(t, "unknown"));

@@ -5,22 +5,41 @@ import Logging from "./Logging";
 import IPlayer from "../Interfaces/Feed/IPlayer";
 import IMod from "../Interfaces/Feed/IMod";
 import WebFeedAuth from "./WebFeedAuth";
+import {probeTcp} from "./GamePortProbe";
 
-export const CONNECTION_REFUSED = 'ECONNREFUSED';
-export const NOT_FOUND = 'ENOTFOUND';
+export const CONNECTION_REFUSED = "ECONNREFUSED";
+export const NOT_FOUND = "ENOTFOUND";
+
+const STREAK_CONFIRM = 2;
+const DEFAULT_GAME_PORT = 10823;
+const DEFAULT_GAME_PORT_TIMEOUT_MS = 3000;
+
+function hostFromStatsUrl(url: string): string {
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return "";
+    }
+}
 
 export default class ServerStatusFeed {
     private _serverStats: ServerStats | null = null;
+    /** Confirmed online after streak debounce (used by Discord embed). */
     private _isOnline: boolean = false;
     private _isFetching: boolean = false;
     /** Milliseconds for last successful HTTP round-trip to serverStatsUrl (feed XML). */
     private _lastFeedLatencyMs: number | null = null;
+    /** Last TCP game-port probe RTT (ms), even if that probe failed (null). */
+    private _lastGamePortLatencyMs: number | null = null;
+    /** When confirmed offline started (ms since epoch), or null if confirmed online. */
+    private _offlineSince: number | null = null;
+    private _onlineStreak = 0;
+    private _offlineStreak = 0;
     /** Avoids spamming the console when the feed fails on every poll (same message ≤ once per interval). */
     private _feedWarnThrottle = new Map<string, number>();
     private readonly _feedWarnThrottleMs = 120_000;
 
-    constructor() {
-    }
+    constructor() {}
 
     private logFeedWarnThrottled(message: string): void {
         const now = Date.now();
@@ -33,116 +52,166 @@ export default class ServerStatusFeed {
     }
 
     /**
+     * Apply Elite-style 2-check debounce: one blip does not flip confirmed status.
+     */
+    private applyProbeDebounce(probeOk: boolean): void {
+        const now = Date.now();
+        if (probeOk) {
+            this._offlineStreak = 0;
+            this._onlineStreak += 1;
+            if (this._onlineStreak >= STREAK_CONFIRM || this._offlineSince == null) {
+                this._isOnline = true;
+                this._offlineSince = null;
+                return;
+            }
+            // First online poll after confirmed downtime: keep offline until streak confirms
+            this._isOnline = false;
+            return;
+        }
+
+        this._onlineStreak = 0;
+        this._offlineStreak += 1;
+        if (this._offlineStreak < STREAK_CONFIRM) {
+            // One failed poll — keep previous confirmed state
+            return;
+        }
+        if (this._offlineSince == null) {
+            this._offlineSince = now;
+        }
+        this._isOnline = false;
+    }
+
+    /**
      * Last measured HTTP latency to the dedicated server feed (ms), or null if last request failed.
      */
     public getLastFeedLatencyMs(): number | null {
         return this._lastFeedLatencyMs;
     }
 
+    /** Last TCP game-port probe latency (ms) when connect succeeded. */
+    public getGamePortLatencyMs(): number | null {
+        return this._lastGamePortLatencyMs;
+    }
+
+    /**
+     * Milliseconds since confirmed offline started, or null if confirmed online / not yet confirmed down.
+     */
+    public getOfflineDurationMs(): number | null {
+        if (this._isOnline || this._offlineSince == null) {
+            return null;
+        }
+        return Math.max(0, Date.now() - this._offlineSince);
+    }
+
     /**
      * Returns the fetching status of the server stats feed
-     * @returns {boolean} The fetching status of the server stats feed
      */
     public isFetching(): boolean {
         return this._isFetching;
     }
 
     /**
-     * Get the server stats object
-     * @returns {ServerStats | null} The server stats object or null if the server is offline or fetching
-     * @private
+     * Get the server stats object when confirmed online and not mid-fetch.
      */
     private getServerStats(): ServerStats | null {
-        if(this._isOnline && !this._isFetching && this._serverStats) {
+        if (this._isOnline && !this._isFetching && this._serverStats) {
             return this._serverStats;
         }
         return null;
     }
 
     /**
-     * Update the server feed from the server status feed url
-     * @returns {Promise<ServerStats | null>} The server stats object or null if the fetch failed
+     * Probe game port (online gate), then optionally refresh the web feed for details.
      */
-    public async updateServerFeed(): Promise<ServerStats|null> {
+    public async updateServerFeed(): Promise<ServerStats | null> {
         this._isFetching = true;
         try {
             const application = Configuration.getConfiguration().application;
+            const host =
+                (application.gameHost?.trim() || hostFromStatsUrl(application.serverStatsUrl)).trim();
+            const port =
+                typeof application.gamePort === "number" && application.gamePort > 0
+                    ? application.gamePort
+                    : DEFAULT_GAME_PORT;
+            const timeoutMs =
+                typeof application.gamePortTimeoutMs === "number" && application.gamePortTimeoutMs > 0
+                    ? application.gamePortTimeoutMs
+                    : DEFAULT_GAME_PORT_TIMEOUT_MS;
+
+            const probe = await probeTcp(host, port, timeoutMs);
+            this._lastGamePortLatencyMs = probe.latencyMs;
+            this.applyProbeDebounce(probe.ok);
+
+            if (!probe.ok) {
+                // Game port down → do not trust web UI alone; clear live details
+                this._lastFeedLatencyMs = null;
+                return null;
+            }
+
+            // Port up: fetch XML for embed details (failure does not force offline)
             const headers = WebFeedAuth.getBasicAuthHeaders(application);
-            const init: RequestInit = headers ? { headers } : {};
+            const init: RequestInit = headers ? {headers} : {};
             const t0 = Date.now();
-            const response = await fetch(application.serverStatsUrl, init);
-            if (!response.ok) {
-                this._lastFeedLatencyMs = Date.now() - t0;
-                this._isOnline = false;
-                if (response.status === 401) {
-                    this.logFeedWarnThrottled(
-                        `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`,
-                    );
-                } else {
-                    this.logFeedWarnThrottled(`Server status feed returned HTTP ${response.status}`);
+            try {
+                const response = await fetch(application.serverStatsUrl, init);
+                if (!response.ok) {
+                    this._lastFeedLatencyMs = Date.now() - t0;
+                    if (response.status === 401) {
+                        this.logFeedWarnThrottled(
+                            `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`,
+                        );
+                    } else {
+                        this.logFeedWarnThrottled(`Server status feed returned HTTP ${response.status}`);
+                    }
+                    return this._serverStats;
                 }
-                return null;
+                const text = await response.text();
+                this._lastFeedLatencyMs = Date.now() - t0;
+                const parsedFeed = new XMLParser({
+                    ignoreAttributes: false,
+                    attributeNamePrefix: "",
+                }).parse(text) as ServerStats;
+                if (!parsedFeed?.Server?.Slots) {
+                    this.logFeedWarnThrottled(`Server status feed is missing expected Server/Slots data`);
+                    return this._serverStats;
+                }
+                this._serverStats = parsedFeed;
+            } catch (reason: any) {
+                this._lastFeedLatencyMs = null;
+                const code = reason?.cause?.code ?? reason?.code;
+                switch (code) {
+                    case CONNECTION_REFUSED:
+                        this.logFeedWarnThrottled(`Connection refused to server status feed`);
+                        break;
+                    case NOT_FOUND:
+                        this.logFeedWarnThrottled(`Server status feed not found`);
+                        break;
+                    default:
+                        this.logFeedWarnThrottled(`Error fetching server status feed`);
+                        break;
+                }
             }
-            const text = await response.text();
-            this._lastFeedLatencyMs = Date.now() - t0;
-            const parsedFeed = new XMLParser({ignoreAttributes: false, attributeNamePrefix: ''}).parse(text) as ServerStats;
-            if (!parsedFeed?.Server?.Slots) {
-                this._isOnline = false;
-                this.logFeedWarnThrottled(`Server status feed is missing expected Server/Slots data`);
-                return null;
-            }
-            this._isOnline = true;
-            this._serverStats = parsedFeed;
-        } catch (reason: any) {
-            this._lastFeedLatencyMs = null;
-            this._isOnline = false;
-            const code = reason?.cause?.code ?? reason?.code;
-            switch (code) {
-                case CONNECTION_REFUSED:
-                    this.logFeedWarnThrottled(`Connection refused to server status feed`);
-                    break;
-                case NOT_FOUND:
-                    this.logFeedWarnThrottled(`Server status feed not found`);
-                    break;
-                default:
-                    this.logFeedWarnThrottled(`Error fetching server status feed`);
-                    break;
-            }
-            return null;
+            return this._serverStats;
         } finally {
             this._isFetching = false;
         }
-        return this._serverStats;
     }
 
     /**
-     * Returns the online status of the server
-     * @returns {boolean} The online status of the server
+     * Confirmed online status (game port after debounce).
      */
     public isOnline(): boolean {
         return this._isOnline;
     }
 
-    /**
-     * Returns the server name
-     * @returns {string} The server name
-     */
     public getServerName(): string {
         return <string>this.getServerStats()?.Server.name;
     }
 
-    /**
-     * Returns the server map name
-     * @returns {string} The server map name
-     */
     public getServerMap(): string {
         return <string>this.getServerStats()?.Server.mapName;
     }
 
-    /**
-     * Returns the server time in decimal format
-     * @returns {number} The server time in decimal format
-     */
     public getServerTimeDecimal(): number {
         let dayTime = this.getServerStats()?.Server.dayTime;
         if (dayTime === undefined) {
@@ -151,66 +220,46 @@ export default class ServerStatusFeed {
         return dayTime / (60 * 60 * 1000) + 0.0001;
     }
 
-    /**
-     * Get the server mods from the server stats feed
-     * @returns {IMod[]} The server mods as an array of IMod objects
-     */
     public getServerMods(): IMod[] {
         let modList = this.getServerStats()?.Server?.Mods?.Mod;
-        if(modList === undefined || !Array.isArray(modList) || modList == null) {
+        if (modList === undefined || !Array.isArray(modList) || modList == null) {
             return [];
         }
         return modList.map((mod: any) => {
             return {
-                name: mod['#text'],
+                name: mod["#text"],
                 author: mod.author,
-                version: mod.version
+                version: mod.version,
             } as IMod;
         });
     }
 
-    /**
-     * Returns the server time in the format HH:MM
-     * @returns {string} The server time in the format HH:MM
-     */
     public getServerTime(): string {
         let decimalTime = this.getServerTimeDecimal();
-        if(decimalTime === 0) {
+        if (decimalTime === 0) {
             return "00:00";
         }
         let hours = Math.floor(decimalTime);
         let minutes = Math.floor((decimalTime - hours) * 60);
         let hoursString = hours.toString();
         let minutesString = minutes.toString();
-        if(hoursString.length === 1) {
+        if (hoursString.length === 1) {
             hoursString = `0${hoursString}`;
         }
-        if(minutesString.length === 1) {
+        if (minutesString.length === 1) {
             minutesString = `0${minutesString}`;
         }
         return `${hoursString}:${minutesString}`;
     }
 
-    /**
-     * Returns the server player count
-     * @returns {number | null | undefined} The server player count
-     */
     public getPlayerCount(): number | null | undefined {
         return <number>this.getServerStats()?.Server?.Slots?.numUsed;
     }
 
-    /**
-     * Returns the server player count
-     * @returns {number | null | undefined} The server player count
-     */
     public getMaxPlayerCount(): number | null | undefined {
         return <number>this.getServerStats()?.Server?.Slots?.capacity;
     }
 
-    /**
-     * Returns the player list from the server stats feed
-     * @returns {IPlayer[]} The online player list as an array of IPlayer objects
-     */
     public getPlayerList(): IPlayer[] {
         let mappedPlayers: IPlayer[];
         let returnPlayers: IPlayer[] = [];
@@ -218,23 +267,32 @@ export default class ServerStatusFeed {
         if (Array.isArray(playerList)) {
             mappedPlayers = playerList.map((player) => {
                 return {
-                    username: player['#text'],
-                    isAdministrator: player.isAdmin === 'true',
+                    username: player["#text"],
+                    isAdministrator: player.isAdmin === "true",
                     sessionTime: parseInt(player.uptime),
-                    isUsed: player.isUsed === 'true',
+                    isUsed: player.isUsed === "true",
                 } as IPlayer;
             });
         } else {
             mappedPlayers = [];
         }
 
-        // Filter out player slots that are not used
         mappedPlayers.forEach((player) => {
-            if(player.isUsed) {
+            if (player.isUsed) {
                 returnPlayers.push(player);
             }
         });
 
         return returnPlayers;
     }
+}
+
+/** Norwegian-style offline duration: «X timer Y minutter». */
+export function formatOfflineDuration(ms: number): string {
+    const totalMin = Math.max(0, Math.floor(ms / 60_000));
+    const hours = Math.floor(totalMin / 60);
+    const minutes = totalMin % 60;
+    const timerWord = hours === 1 ? "time" : "timer";
+    const minWord = minutes === 1 ? "minutt" : "minutter";
+    return `${hours} ${timerWord} ${minutes} ${minWord}`;
 }

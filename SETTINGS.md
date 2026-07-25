@@ -6,12 +6,15 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | **- Key -**                                  | **- Description -**                                                       |
 |----------------------------------------------|---------------------------------------------------------------------------|
 | (*) application.serverPassword               | The password to join the server (or leave empty)                          |
-| (*) application.serverStatsUrl               | The feed URL to the server stats (from the web interface from the server) |
+| (*) application.serverStatsUrl               | Feed URL for server *details* (XML). Not the sole online check — see gamePort |
 | (*) application.serverMapUrl                 | The feed URL to the server map (from the web interface from the server)   |
 | application.webInterfaceUsername             | Web interface login (HTTP Basic); required if the feed returns 401        |
 | application.webInterfacePassword             | Web interface password; use with webInterfaceUsername                     |
 | application.embedImageUrl                    | Optional large image under the embed body (HTTPS URL; e.g. banner/logo)   |
 | application.modPackButtonUrl                 | Optional URL for a link button under the status embed (mod packs); `https://` is added automatically if you omit the scheme (e.g. `www.example.com` works); empty = no button |
+| application.gamePort                         | TCP game port used as online/offline source of truth (default 10823). Web UI alone is not enough |
+| application.gameHost                         | Optional host for the game-port probe; defaults to hostname from serverStatsUrl |
+| application.gamePortTimeoutMs                | TCP connect timeout in ms for gamePort (default 3000)                     |
 | (*) application.updateIntervalSeconds        | The interval in seconds to update the server stats                        |
 | (*) discord.botToken                         | The bot token from the Discord Developer Portal                           |
 | (*) discord.channelId                        | Single server: text channel id for the live status (ignored if `servers` is set) |
@@ -19,7 +22,8 @@ fields marked with `(*)` are required to be checked, or leave empty for default 
 | translation.discordEmbed.title               | The title of the Discord embed                                            |
 | translation.discordEmbed.titleStatus         | Word shown in the STATUS line (e.g. STATUS)                               |
 | translation.discordEmbed.titleBotUptime      | Label for bot process uptime                                              |
-| translation.discordEmbed.titleServerLatency  | Label for dedicated server responsiveness (ms)                          |
+| translation.discordEmbed.titleServerLatency  | Label for dedicated server responsiveness (game-port TCP ms)            |
+| translation.discordEmbed.titleOfflineDuration| Optional label for confirmed offline duration (default: Frakoblet i)    |
 | translation.discordEmbed.labelModPackButton  | Optional label for the mod-pack link button (default: Norwegian text in code) |
 | translation.discordEmbed.descriptionOnline   | The description when the server is online                                 |
 | translation.discordEmbed.descriptionOffline  | The description when the server is offline                                |
