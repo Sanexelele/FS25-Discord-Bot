@@ -1,13 +1,15 @@
 @echo off
 set NODE_OPTIONS=--no-deprecation
-set LOG_LEVEL=error
-REM For no console output at all, use: set LOG_LEVEL=silent
+set LOG_LEVEL=info
+REM Keep this window open and visible. Do not start the bot from Cursor.
 color 0A
 title FARMINGBOT
-cd /d "C:\Users\Administrator\Desktop\BOTS\FS25-Discord-Bot"
+cd /d "D:\BOTS\FS25-Discord-Bot"
 
-REM No log file while running; fatal crashes are written to bot-crash.log by the bot
-npm start
+echo Starting Farming bot...
+call npm run build
+title FARMINGBOT
+node build/Main.js
 
 echo.
 echo Bot stopped. If it crashed, see bot-crash.log in this folder.

@@ -205,22 +205,25 @@ export default class DiscordEmbed {
             const textChannel = channel as TextChannel;
             const components = this.buildStatusComponents();
 
-            const sendInitialMessage = async (embed: EmbedBuilder) => {
-                const message = await textChannel.send({embeds: [embed], components});
-                this.firstMessageIds.set(channelId, message.id);
-            };
-
-            const firstId = this.firstMessageIds.get(channelId) ?? null;
-            if (firstId !== null) {
-                try {
-                    const message = await textChannel.messages.fetch(firstId);
-                    await message.edit({embeds: [embedMessage], components});
-                } catch {
-                    await sendInitialMessage(embedMessage);
+            const botId = this.discordAppClient.user?.id;
+            const recent = await textChannel.messages.fetch({limit: 50});
+            const ours = [...recent.filter((m) => botId != null && m.author.id === botId).values()].sort(
+                (a, b) => a.createdTimestamp - b.createdTimestamp
+            );
+            const trackedId = this.firstMessageIds.get(channelId);
+            const keep = ours.find((m) => m.id === trackedId) ?? ours[0] ?? null;
+            for (const extra of ours) {
+                if (keep == null || extra.id !== keep.id) {
+                    await extra.delete().catch(() => {});
                 }
-            } else {
-                await sendInitialMessage(embedMessage);
             }
+            if (keep != null) {
+                this.firstMessageIds.set(channelId, keep.id);
+                await keep.edit({embeds: [embedMessage], components});
+                return;
+            }
+            const message = await textChannel.send({embeds: [embedMessage], components});
+            this.firstMessageIds.set(channelId, message.id);
         } catch (exception: unknown) {
             if (isDiscordChannelAccessError(exception)) {
                 if (!this.channelAccessErrorsLogged.has(channelId)) {
@@ -257,10 +260,13 @@ export default class DiscordEmbed {
                     continue;
                 }
                 const textChannel = channel as TextChannel;
-                const messages = await textChannel.messages.fetch();
-                messages.forEach((message) => {
-                    message.delete().catch(() => {});
-                });
+                const botId = this.discordAppClient.user?.id;
+                const messages = await textChannel.messages.fetch({limit: 50});
+                const ours = messages.filter((message) => botId != null && message.author.id === botId);
+                for (const message of ours.values()) {
+                    await message.delete().catch(() => {});
+                }
+                this.firstMessageIds.delete(target.channelId);
             } catch {
                 /* channel missing, no access, or API error */
             }

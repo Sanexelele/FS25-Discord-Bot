@@ -5,7 +5,8 @@ import Logging from "./Logging";
 import IPlayer from "../Interfaces/Feed/IPlayer";
 import IMod from "../Interfaces/Feed/IMod";
 import WebFeedAuth from "./WebFeedAuth";
-import {probeTcp} from "./GamePortProbe";
+import os from "os";
+import {probeGamePort} from "./GamePortProbe";
 
 export const CONNECTION_REFUSED = "ECONNREFUSED";
 export const NOT_FOUND = "ENOTFOUND";
@@ -13,6 +14,55 @@ export const NOT_FOUND = "ENOTFOUND";
 const STREAK_CONFIRM = 2;
 const DEFAULT_GAME_PORT = 10823;
 const DEFAULT_GAME_PORT_TIMEOUT_MS = 3000;
+
+function localIpv4Addresses(): string[] {
+    const out: string[] = [];
+    const nics = os.networkInterfaces();
+    for (const addrs of Object.values(nics)) {
+        if (!addrs) {
+            continue;
+        }
+        for (const a of addrs) {
+            if (a.family === "IPv4" && !a.internal) {
+                out.push(a.address);
+            }
+        }
+    }
+    return out;
+}
+
+function rewriteUrlHost(url: string, host: string): string {
+    try {
+        const u = new URL(url);
+        u.hostname = host;
+        return u.toString();
+    } catch {
+        return url;
+    }
+}
+
+function feedUrlCandidates(url: string): string[] {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    const add = (u: string) => {
+        if (!seen.has(u)) {
+            seen.add(u);
+            list.push(u);
+        }
+    };
+    add(url);
+    try {
+        const host = new URL(url).hostname;
+        if (host === "127.0.0.1" || host.toLowerCase() === "localhost") {
+            for (const ip of localIpv4Addresses()) {
+                add(rewriteUrlHost(url, ip));
+            }
+        }
+    } catch {
+        /* keep original only */
+    }
+    return list;
+}
 
 function hostFromStatsUrl(url: string): string {
     try {
@@ -138,7 +188,7 @@ export default class ServerStatusFeed {
                     ? application.gamePortTimeoutMs
                     : DEFAULT_GAME_PORT_TIMEOUT_MS;
 
-            const probe = await probeTcp(host, port, timeoutMs);
+            const probe = await probeGamePort(host, port, timeoutMs);
             this._lastGamePortLatencyMs = probe.latencyMs;
             this.applyProbeDebounce(probe.ok);
 
@@ -151,34 +201,42 @@ export default class ServerStatusFeed {
             // Port up: fetch XML for embed details (failure does not force offline)
             const headers = WebFeedAuth.getBasicAuthHeaders(application);
             const init: RequestInit = headers ? {headers} : {};
-            const t0 = Date.now();
-            try {
-                const response = await fetch(application.serverStatsUrl, init);
-                if (!response.ok) {
+            const candidates = feedUrlCandidates(application.serverStatsUrl);
+            let lastError: unknown = null;
+            for (const feedUrl of candidates) {
+                const t0 = Date.now();
+                try {
+                    const response = await fetch(feedUrl, init);
                     this._lastFeedLatencyMs = Date.now() - t0;
-                    if (response.status === 401) {
-                        this.logFeedWarnThrottled(
-                            `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`,
-                        );
-                    } else {
-                        this.logFeedWarnThrottled(`Server status feed returned HTTP ${response.status}`);
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            this.logFeedWarnThrottled(
+                                `Server status feed returned 401 Unauthorized. Set webInterfaceUsername and webInterfacePassword in config.json to match the dedicated server web interface login.`,
+                            );
+                        } else {
+                            this.logFeedWarnThrottled(`Server status feed returned HTTP ${response.status}`);
+                        }
+                        continue;
                     }
-                    return this._serverStats;
+                    const text = await response.text();
+                    const parsedFeed = new XMLParser({
+                        ignoreAttributes: false,
+                        attributeNamePrefix: "",
+                    }).parse(text) as ServerStats;
+                    if (!parsedFeed?.Server?.Slots) {
+                        this.logFeedWarnThrottled(`Server status feed is missing expected Server/Slots data`);
+                        continue;
+                    }
+                    this._serverStats = parsedFeed;
+                    lastError = null;
+                    break;
+                } catch (reason: any) {
+                    lastError = reason;
+                    this._lastFeedLatencyMs = null;
                 }
-                const text = await response.text();
-                this._lastFeedLatencyMs = Date.now() - t0;
-                const parsedFeed = new XMLParser({
-                    ignoreAttributes: false,
-                    attributeNamePrefix: "",
-                }).parse(text) as ServerStats;
-                if (!parsedFeed?.Server?.Slots) {
-                    this.logFeedWarnThrottled(`Server status feed is missing expected Server/Slots data`);
-                    return this._serverStats;
-                }
-                this._serverStats = parsedFeed;
-            } catch (reason: any) {
-                this._lastFeedLatencyMs = null;
-                const code = reason?.cause?.code ?? reason?.code;
+            }
+            if (lastError != null && this._serverStats == null) {
+                const code = (lastError as any)?.cause?.code ?? (lastError as any)?.code;
                 switch (code) {
                     case CONNECTION_REFUSED:
                         this.logFeedWarnThrottled(`Connection refused to server status feed`);
